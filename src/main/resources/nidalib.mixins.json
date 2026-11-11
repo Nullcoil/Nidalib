@@ -5,7 +5,8 @@
 	"mixins": [
 		"FoodDataMixin",
 		"GuiMixin",
-		"LivingEntityMixin"
+		"LivingEntityMixin",
+		"MultiNoiseBiomeSourceMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
