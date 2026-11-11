@@ -3,15 +3,15 @@
 	"id": "nidalib",
 	"version": "${version}",
 	"name": "Nidalib",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "my first thought: I need a lib.",
 	"authors": [
-		"Me!"
+		"Nullcoil"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://modrinth.com/mod/nidalib",
+		"sources": "https://github.com/Nullcoil/Nidalib"
 	},
-	"license": "CC0-1.0",
+	"license": "MIT",
 	"icon": "assets/nidalib/icon.png",
 	"environment": "*",
 	"entrypoints": {
@@ -22,9 +22,10 @@
 	"mixins": [
 		"nidalib.mixins.json"
 	],
+	"accessWidener": "nidalib.accesswidener",
 	"depends": {
-		"fabricloader": ">=0.19.5",
-		"minecraft": "~26.3",
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
 		"java": ">=25",
 		"fabric-api": "*"
 	}
