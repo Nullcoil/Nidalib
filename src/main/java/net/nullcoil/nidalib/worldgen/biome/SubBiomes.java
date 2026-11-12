@@ -7,6 +7,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Climate;
 import net.nullcoil.nidalib.Nidalib;
 import org.jetbrains.annotations.Nullable;
@@ -128,6 +129,43 @@ public final class SubBiomes {
                     }));
         }
         return all.stream();
+    }
+
+    /**
+     * How deep a spot is inside its climate-placed biome: 0 at that biome's climate center,
+     * approaching 1 at its border with another biome. This is the same value
+     * {@link SubBiomeRule.Context#edgeRatio()} sees, so nested sub-biomes can tell how far
+     * from their own edge a spot is: e.g. a sub-biome placed with {@code core(0.4)} spans
+     * ratios 0 to 0.4, center to edge.
+     *
+     * <p>Takes quart (biome cell) coordinates, like {@code getNoiseBiome}.
+     *
+     * @return the ratio, or NaN if the biome source isn't climate-based
+     */
+    public static double edgeRatio(BiomeSource source, Climate.Sampler sampler, int qx, int qy, int qz) {
+        if (!(source instanceof ClimateParameterAccess access)) return Double.NaN;
+        Climate.ParameterList<Holder<Biome>> parameters = access.nidalib$parameters();
+        Climate.TargetPoint point = sampler.sample(qx, qy, qz);
+
+        // Nearest climate point overall: that's the climate-placed biome
+        Holder<Biome> placed = null;
+        long best = Long.MAX_VALUE;
+        for (Pair<Climate.ParameterPoint, Holder<Biome>> pair : parameters.values()) {
+            long d = distance(pair.getFirst(), point);
+            if (d < best) {
+                best = d;
+                placed = pair.getSecond();
+            }
+        }
+        if (placed == null) return Double.NaN;
+
+        long parentDistance = Long.MAX_VALUE, nextDistance = Long.MAX_VALUE;
+        for (Pair<Climate.ParameterPoint, Holder<Biome>> pair : parameters.values()) {
+            long d = distance(pair.getFirst(), point);
+            if (pair.getSecond().equals(placed)) parentDistance = Math.min(parentDistance, d);
+            else nextDistance = Math.min(nextDistance, d);
+        }
+        return new SubBiomeRule.Context(parentDistance, nextDistance).edgeRatio();
     }
 
     // Same metric vanilla uses to pick biomes: squared distance on each axis, plus offset.

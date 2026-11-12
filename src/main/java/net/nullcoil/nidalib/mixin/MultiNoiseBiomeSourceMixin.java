@@ -6,6 +6,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
+import net.nullcoil.nidalib.worldgen.biome.ClimateParameterAccess;
 import net.nullcoil.nidalib.worldgen.biome.SubBiomes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -14,9 +15,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import java.util.stream.Stream;
 
 @Mixin(MultiNoiseBiomeSource.class)
-public abstract class MultiNoiseBiomeSourceMixin {
+public abstract class MultiNoiseBiomeSourceMixin implements ClimateParameterAccess {
     @Shadow
     protected abstract Climate.ParameterList<Holder<Biome>> parameters();
+
+    @Override
+    public Climate.ParameterList<Holder<Biome>> nidalib$parameters() {
+        return this.parameters();
+    }
 
     /**
      * Every biome lookup (generation, /locate, F3) ends here,
