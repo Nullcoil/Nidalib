@@ -17,6 +17,9 @@
 	"entrypoints": {
 		"main": [
 			"net.nullcoil.nidalib.Nidalib"
+		],
+		"client": [
+			"net.nullcoil.nidalib.NidalibClient"
 		]
 	},
 	"mixins": [

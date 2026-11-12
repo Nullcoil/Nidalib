@@ -8,6 +8,10 @@
 		"LivingEntityMixin",
 		"MultiNoiseBiomeSourceMixin"
 	],
+	"client": [
+		"LavaFluidModelMixin",
+		"LavaFluidRendererMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},
