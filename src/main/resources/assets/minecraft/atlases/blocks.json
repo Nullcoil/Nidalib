@@ -3,12 +3,22 @@
     {
       "type": "nidalib:lava_stages",
       "sources": ["bigwater:block/lava_still", "minecraft:block/lava_still"],
-      "kind": "still"
+      "output": "nidalib:block/lava_{stage}_still"
     },
     {
       "type": "nidalib:lava_stages",
       "sources": ["bigwater:block/lava_flow", "minecraft:block/lava_flow"],
-      "kind": "flow"
+      "output": "nidalib:block/lava_{stage}_flow"
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": ["minecraft:block/fire_0"],
+      "output": "nidalib:block/fire_0_{stage}"
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": ["minecraft:block/fire_1"],
+      "output": "nidalib:block/fire_1_{stage}"
     }
   ]
 }

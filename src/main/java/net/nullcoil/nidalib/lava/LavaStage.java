@@ -1,7 +1,4 @@
-package net.nullcoil.nidalib.client.lava;
-
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
+package net.nullcoil.nidalib.lava;
 
 /**
  * The lava heat scale, coolest to hottest. Each stage is the active lava texture run
@@ -14,10 +11,9 @@ import net.fabricmc.api.Environment;
  * </ul>
  * Like GIMP, this works in CIE LCh (D50), and colors that land outside sRGB are clipped.
  *
- * <p>Heat values sit between stages (e.g. 2.3 = 70% yellow, 30% white),
- * and the renderer crossfades the two neighbors.
+ * <p>Heat values sit between stages (e.g. 2.3 = 70% yellow, 30% white). Lava itself
+ * crossfades the two neighbors; fire caught from lava uses the nearest one.
  */
-@Environment(EnvType.CLIENT)
 public enum LavaStage {
     //       name         hue      chroma   lightness
     RED     ("red",      -15.00f,   0.00f,  -10.00f),
@@ -40,6 +36,11 @@ public enum LavaStage {
     }
 
     public static final int MAX = values().length - 1;
+
+    /** The stage nearest to a heat value. */
+    public static LavaStage nearest(float heat) {
+        return values()[Math.max(0, Math.min(MAX, Math.round(heat)))];
+    }
 
     /** Vanilla is drawn with the untouched active texture; every other stage gets a generated copy. */
     public boolean isGenerated() {

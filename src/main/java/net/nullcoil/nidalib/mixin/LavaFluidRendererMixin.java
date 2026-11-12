@@ -8,9 +8,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
-import net.nullcoil.nidalib.client.lava.LavaHeat;
+import net.nullcoil.nidalib.client.lava.LavaHeatClient;
 import net.nullcoil.nidalib.client.lava.LavaRenderPass;
-import net.nullcoil.nidalib.client.lava.LavaStage;
+import net.nullcoil.nidalib.lava.LavaStage;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -46,7 +46,7 @@ public abstract class LavaFluidRendererMixin {
         if (LavaRenderPass.active()) return;
         if (!fluidState.getType().isSame(Fluids.LAVA)) return;
 
-        float heat = LavaHeat.at(level, pos);
+        float heat = LavaHeatClient.at(level, pos);
         int lower = Math.min((int) Math.floor(heat), LavaStage.MAX);
         float blend = heat - lower;
 

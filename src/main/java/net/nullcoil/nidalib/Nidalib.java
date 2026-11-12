@@ -3,6 +3,7 @@ package net.nullcoil.nidalib;
 import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.resources.Identifier;
+import net.nullcoil.nidalib.lava.LavaFire;
 import net.nullcoil.nidalib.worldgen.biome.SubBiomes;
 
 import org.slf4j.Logger;
@@ -15,6 +16,7 @@ public class Nidalib implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		SubBiomes.init();
+		LavaFire.init();
 		LOGGER.info("Finished initializing Nidalib");
 	}
 

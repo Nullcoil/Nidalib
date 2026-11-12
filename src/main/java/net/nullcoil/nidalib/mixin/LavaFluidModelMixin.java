@@ -2,7 +2,7 @@ package net.nullcoil.nidalib.mixin;
 
 import net.minecraft.client.renderer.block.FluidModel;
 import net.minecraft.client.renderer.block.FluidStateModelSet;
-import net.nullcoil.nidalib.client.lava.LavaHeat;
+import net.nullcoil.nidalib.client.lava.LavaHeatClient;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -30,7 +30,7 @@ public class LavaFluidModelMixin {
                 LAVA_MODEL.stillMaterial().withForceTranslucent(true),
                 LAVA_MODEL.flowingMaterial().withForceTranslucent(true),
                 LAVA_MODEL.overlayMaterial(),
-                LavaHeat.TINT_SOURCE
+                LavaHeatClient.TINT_SOURCE
         );
     }
 }

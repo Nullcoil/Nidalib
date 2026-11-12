@@ -2,6 +2,7 @@ package net.nullcoil.nidalib.client.lava;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.api.EnvType;
@@ -10,6 +11,7 @@ import net.minecraft.client.renderer.texture.atlas.SpriteSource;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.nullcoil.nidalib.lava.LavaStage;
 import org.slf4j.Logger;
 
 import java.io.ByteArrayInputStream;
@@ -21,34 +23,34 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Atlas sprite source that generates every non-vanilla {@link LavaStage} from the
- * active lava texture while the atlas is built. Uses the first texture in "sources"
- * that exists, so it follows resource packs and BigWater's packs, and each copy keeps
- * the original's size and animation.
+ * Atlas sprite source that generates every non-vanilla {@link LavaStage} of a texture
+ * while the atlas is built. Uses the first texture in "sources" that exists, so it follows
+ * resource packs (and BigWater's packs), and each copy keeps the original's size and
+ * animation. "{stage}" in "output" is replaced with the stage name.
  *
  * <pre>{@code
  * { "type": "nidalib:lava_stages",
  *   "sources": ["bigwater:block/lava_still", "minecraft:block/lava_still"],
- *   "kind": "still" }
+ *   "output": "nidalib:block/lava_{stage}_still" }
  * }</pre>
  * produces nidalib:block/lava_red_still, lava_yellow_still, and so on.
  */
 @Environment(EnvType.CLIENT)
-public record LavaStageSpriteSource(List<Identifier> sources, String kind) implements SpriteSource {
+public record LavaStageSpriteSource(List<Identifier> sources, String output) implements SpriteSource {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final MapCodec<LavaStageSpriteSource> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             Identifier.CODEC.listOf().fieldOf("sources").forGetter(LavaStageSpriteSource::sources),
-            com.mojang.serialization.Codec.STRING.fieldOf("kind").forGetter(LavaStageSpriteSource::kind)
+            Codec.STRING.fieldOf("output").forGetter(LavaStageSpriteSource::output)
     ).apply(instance, LavaStageSpriteSource::new));
 
-    /** The generated sprite for a stage, e.g. nidalib:block/lava_soul_flow. */
-    public static Identifier spriteId(LavaStage stage, String kind) {
-        return Identifier.fromNamespaceAndPath("nidalib", "block/lava_" + stage.id + "_" + kind);
+    /** Fills a "{stage}" template, e.g. "nidalib:block/fire_0_{stage}" -> nidalib:block/fire_0_red. */
+    public static Identifier stageId(String template, LavaStage stage) {
+        return Identifier.parse(template.replace("{stage}", stage.id));
     }
 
     @Override
-    public void run(ResourceManager resourceManager, Output output) {
+    public void run(ResourceManager resourceManager, Output out) {
         for (Identifier source : sources) {
             Optional<Resource> resource = resourceManager.getResource(TEXTURE_ID_CONVERTER.idToFile(source));
             if (resource.isEmpty()) continue;
@@ -57,12 +59,12 @@ public record LavaStageSpriteSource(List<Identifier> sources, String kind) imple
             for (LavaStage stage : LavaStage.values()) {
                 if (!stage.isGenerated()) continue;
                 // Same pack and same .mcmeta (animation), recolored pixels
-                output.add(spriteId(stage, kind),
+                out.add(stageId(output, stage),
                         new Resource(original.source(), () -> recolor(original, stage), original::metadata));
             }
             return;
         }
-        LOGGER.warn("No lava texture found for {} stages (tried {})", kind, sources);
+        LOGGER.warn("No texture found for lava stages {} (tried {})", output, sources);
     }
 
     @Override

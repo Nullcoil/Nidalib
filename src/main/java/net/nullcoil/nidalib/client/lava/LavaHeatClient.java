@@ -10,51 +10,21 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ColorResolver;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import net.nullcoil.nidalib.Nidalib;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import net.nullcoil.nidalib.lava.LavaHeat;
+import net.nullcoil.nidalib.lava.LavaStage;
 
 /**
- * Per-biome lava heat on the {@link LavaStage} scale (0 = red ... 5 = soul),
- * blended across biome borders like water color. Lava is drawn with its stage's
- * texture, crossfading between neighboring stages.
- *
- * <p>Every biome is {@link LavaStage#VANILLA} unless a mod says otherwise, so Nidalib
- * on its own changes nothing. From a client initializer:
- * <pre>{@code
- * LavaHeat.set(Biomes.CRIMSON_FOREST, LavaStage.RED);
- * LavaHeat.set(MY_BIOME, 2.5f); // halfway between yellow and white
- * }</pre>
+ * Client side of {@link LavaHeat}: blends the per-biome heat across biome borders
+ * (like water color) for the lava renderer, and registers the stage texture generator.
  */
 @Environment(EnvType.CLIENT)
-public final class LavaHeat {
-    private LavaHeat() {}
-
-    /** Any biome without a heat: vanilla lava. */
-    public static final float DEFAULT_HEAT = LavaStage.VANILLA.ordinal();
-
-    private static final Map<ResourceKey<Biome>, Float> HEAT = new ConcurrentHashMap<>();
-
-    /** Sets a biome's lava to a stage. Later calls for the same biome win. */
-    public static void set(ResourceKey<Biome> biome, LavaStage stage) {
-        set(biome, stage.ordinal());
-    }
-
-    /** Sets a biome's lava heat, 0 to {@link LavaStage#MAX}; fractions mix two stages. */
-    public static void set(ResourceKey<Biome> biome, float heat) {
-        HEAT.put(biome, Mth.clamp(heat, 0f, LavaStage.MAX));
-    }
-
-    /** A biome's configured heat, or {@link #DEFAULT_HEAT}. */
-    public static float get(ResourceKey<Biome> biome) {
-        return HEAT.getOrDefault(biome, DEFAULT_HEAT);
-    }
+public final class LavaHeatClient {
+    private LavaHeatClient() {}
 
     /**
      * Biome -> packed heat. The heat rides in the red channel so vanilla's biome blend
@@ -91,10 +61,10 @@ public final class LavaHeat {
 
     private static float heatFor(Biome biome) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level == null) return DEFAULT_HEAT;
+        if (level == null) return LavaHeat.DEFAULT_HEAT;
 
         var biomes = level.registryAccess().lookupOrThrow(Registries.BIOME);
-        return biomes.getResourceKey(biome).map(LavaHeat::get).orElse(DEFAULT_HEAT);
+        return biomes.getResourceKey(biome).map(LavaHeat::get).orElse(LavaHeat.DEFAULT_HEAT);
     }
 
     private static int pack(float heat) {

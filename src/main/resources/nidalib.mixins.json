@@ -6,11 +6,16 @@
 		"FoodDataMixin",
 		"GuiMixin",
 		"LivingEntityMixin",
-		"MultiNoiseBiomeSourceMixin"
+		"MultiNoiseBiomeSourceMixin",
+		"LavaFireMixin"
 	],
 	"client": [
 		"LavaFluidModelMixin",
-		"LavaFluidRendererMixin"
+		"LavaFluidRendererMixin",
+		"LavaFireEntityRendererMixin",
+		"LavaFireFlameMixin",
+		"LavaFireOverlayMixin",
+		"LavaFireRenderStateMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
