@@ -1,0 +1,5 @@
+{
+  "attribute.name.nidalib.corruption": "Corruption",
+  "death.attack.nidalib.corruption": "%1$s lost themselves",
+  "death.attack.nidalib.corruption.player": "%1$s lost themselves fighting %2$s"
+}
