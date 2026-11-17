@@ -1,5 +1,12 @@
 {
   "attribute.name.nidalib.corruption": "Corruption",
   "death.attack.nidalib.corruption": "%1$s lost themselves",
-  "death.attack.nidalib.corruption.player": "%1$s lost themselves fighting %2$s"
+  "death.attack.nidalib.corruption.player": "%1$s lost themselves fighting %2$s",
+  "nidalib.config.title": "Nidalib",
+  "nidalib.config.blend_levels": "Shader Blend Steps: %s",
+  "nidalib.config.blend_levels.tooltip": "How many steps lava blends in at biome borders while shaders are on. More steps look smoother but use more texture memory. Changing it reloads resources.",
+  "nidalib.config.shader_blend": "Shader Blending: %s",
+  "nidalib.config.shader_blend.dither": "Dithering",
+  "nidalib.config.shader_blend.pre_blend": "Pre-Blend",
+  "nidalib.config.shader_blend.tooltip": "How lava blends at biome borders while shaders are on. Dithering: a pixel pattern of the hotter color. Pre-Blend: the two colors mixed smoothly. Without shaders, lava always blends normally. Changing it reloads resources."
 }

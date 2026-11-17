@@ -20,6 +20,9 @@
 		],
 		"client": [
 			"net.nullcoil.nidalib.NidalibClient"
+		],
+		"modmenu": [
+			"net.nullcoil.nidalib.compat.modmenu.NidalibModMenu"
 		]
 	},
 	"mixins": [

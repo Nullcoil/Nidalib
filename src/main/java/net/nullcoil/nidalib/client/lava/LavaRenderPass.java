@@ -23,7 +23,8 @@ public final class LavaRenderPass {
     public static final String FIRE_0 = "nidalib:block/fire_0_{stage}";
     public static final String FIRE_1 = "nidalib:block/fire_1_{stage}";
 
-    private record Pass(LavaStage stage, int alpha) {}
+    // dither: dither pattern level (cut-out layer); blend: pre-blend level toward the next stage
+    private record Pass(LavaStage stage, int alpha, int dither, int blend) {}
 
     private static final ThreadLocal<Pass> CURRENT = new ThreadLocal<>();
 
@@ -32,7 +33,17 @@ public final class LavaRenderPass {
     }
 
     public static void begin(LavaStage stage, int alpha) {
-        CURRENT.set(new Pass(stage, alpha));
+        CURRENT.set(new Pass(stage, alpha, 0, 0));
+    }
+
+    /** A cut-out pass: the stage's dither pattern {@code level} (1 to {@link LavaShaderBlend#levels()} - 1), fully opaque. */
+    public static void beginDithered(LavaStage stage, int level) {
+        CURRENT.set(new Pass(stage, 255, level, 0));
+    }
+
+    /** One opaque pass: {@code lower} pre-blended {@code level} steps toward the next hotter stage. */
+    public static void beginBlended(LavaStage lower, int level) {
+        CURRENT.set(new Pass(lower, 255, 0, level));
     }
 
     public static void end() {
@@ -52,7 +63,8 @@ public final class LavaRenderPass {
      */
     public static TextureAtlasSprite swap(TextureAtlasSprite original) {
         Pass pass = CURRENT.get();
-        if (pass == null || !pass.stage().isGenerated()) return original;
+        // Dithered and pre-blended passes swap even for vanilla: those are generated sprites too
+        if (pass == null || (!pass.stage().isGenerated() && pass.dither() == 0 && pass.blend() == 0)) return original;
 
         String path = original.contents().name().getPath();
         String template;
@@ -60,6 +72,13 @@ public final class LavaRenderPass {
         else if (path.endsWith("lava_flow")) template = LAVA_FLOW;
         else return original;
 
+        if (pass.dither() > 0 || pass.blend() > 0) {
+            Identifier id = pass.dither() > 0
+                    ? LavaStageSpriteSource.ditherId(template, pass.stage(), pass.dither())
+                    : LavaStageSpriteSource.blendId(template, pass.stage(), pass.blend());
+            TextureAtlasSprite sprite = atlasSprite(id);
+            return sprite != null ? sprite : original;
+        }
         return stageSprite(template, pass.stage(), original);
     }
 

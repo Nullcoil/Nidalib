@@ -17,6 +17,8 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.nullcoil.nidalib.client.lava.LavaHeatClient;
 import net.nullcoil.nidalib.client.lava.LavaRenderPass;
+import net.nullcoil.nidalib.client.lava.LavaShaderBlend;
+import net.nullcoil.nidalib.compat.IrisCompat;
 import net.nullcoil.nidalib.compat.sodium.SodiumLavaBuffers;
 import net.nullcoil.nidalib.lava.LavaStage;
 import org.spongepowered.asm.mixin.Mixin;
@@ -67,13 +69,42 @@ public abstract class SodiumLavaFluidRendererMixin {
         Material baseMaterial = buffers != null ? DefaultMaterials.SOLID : material;
         ChunkModelBuilder baseBuilder = buffers != null ? buffers.get(DefaultMaterials.SOLID) : meshBuilder;
 
-        try {
-            LavaRenderPass.begin(LavaStage.values()[lower], 255);
-            this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
+        LavaStage lowerStage = LavaStage.values()[lower];
+        boolean crossfade = blend >= MIN_BLEND && lower < LavaStage.MAX;
 
-            if (blend >= MIN_BLEND && lower < LavaStage.MAX) {
-                LavaRenderPass.begin(LavaStage.values()[lower + 1], Math.round(blend * 255f));
-                this.render(level, blockState, fluidState, blockPos, offset, collector, meshBuilder, material, colorProvider, sprites);
+        try {
+            if (crossfade && buffers != null && IrisCompat.shadersInUse()) {
+                // Shaders: everything stays fully opaque, so nothing goes through the shader's
+                // water/translucent path. The blend steps in 1/levels (Nidalib's Mod Menu config).
+                LavaStage upperStage = LavaStage.values()[lower + 1];
+                int levels = LavaShaderBlend.levels();
+                int step = Math.round(blend * levels);
+
+                if (step <= 0 || step >= levels) {
+                    // Rounds to one stage outright
+                    LavaRenderPass.begin(step >= levels ? upperStage : lowerStage, 255);
+                    this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
+                } else if (LavaShaderBlend.mode() == LavaShaderBlend.Mode.PRE_BLEND) {
+                    // One solid layer, its texture already mixed between the two stages
+                    LavaRenderPass.beginBlended(lowerStage, step);
+                    this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
+                } else {
+                    // The cooler stage, with the hotter one's dither pattern cut out on top
+                    LavaRenderPass.begin(lowerStage, 255);
+                    this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
+                    LavaRenderPass.beginDithered(upperStage, step);
+                    this.render(level, blockState, fluidState, blockPos, offset, collector,
+                            buffers.get(DefaultMaterials.CUTOUT_MIPPED), DefaultMaterials.CUTOUT_MIPPED, colorProvider, sprites);
+                }
+            } else {
+                // No shaders: opaque base layer, then a smooth translucent crossfade on top
+                LavaRenderPass.begin(lowerStage, 255);
+                this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
+
+                if (crossfade) {
+                    LavaRenderPass.begin(LavaStage.values()[lower + 1], Math.round(blend * 255f));
+                    this.render(level, blockState, fluidState, blockPos, offset, collector, meshBuilder, material, colorProvider, sprites);
+                }
             }
         } finally {
             LavaRenderPass.end();

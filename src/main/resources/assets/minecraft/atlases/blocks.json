@@ -3,12 +3,14 @@
     {
       "type": "nidalib:lava_stages",
       "sources": ["bigwater:block/lava_still", "minecraft:block/lava_still"],
-      "output": "nidalib:block/lava_{stage}_still"
+      "output": "nidalib:block/lava_{stage}_still",
+      "shader_blend": true
     },
     {
       "type": "nidalib:lava_stages",
       "sources": ["bigwater:block/lava_flow", "minecraft:block/lava_flow"],
-      "output": "nidalib:block/lava_{stage}_flow"
+      "output": "nidalib:block/lava_{stage}_flow",
+      "shader_blend": true
     },
     {
       "type": "nidalib:lava_stages",

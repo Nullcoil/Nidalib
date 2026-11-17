@@ -20,6 +20,10 @@ repositories {
 			includeGroup "maven.modrinth"
 		}
 	}
+	maven {
+		name = "TerraformersMC"
+		url = "https://maven.terraformersmc.com/"
+	}
 }
 
 dependencies {
@@ -33,6 +37,8 @@ dependencies {
 	// Only compiled against, never bundled or required: the Sodium lava mixin
 	// applies only when players have Sodium installed.
 	compileOnly "maven.modrinth:sodium:${project.sodium_version}"
+	// Only for the config button in Mod Menu; Mod Menu stays optional
+	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 loom {
