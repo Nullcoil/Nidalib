@@ -10,7 +10,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.nullcoil.nidalib.lava.LavaStage;
 import org.jetbrains.annotations.Nullable;
-
+//
 /**
  * Lava heat stages for renderers that replace vanilla's fluid renderer (Sodium, and
  * modpacks built on it like Fabulously Optimized). Those never call vanilla's
