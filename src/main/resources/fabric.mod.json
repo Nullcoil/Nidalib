@@ -23,7 +23,8 @@
 		]
 	},
 	"mixins": [
-		"nidalib.mixins.json"
+		"nidalib.mixins.json",
+		"nidalib.sodium.mixins.json"
 	],
 	"accessWidener": "nidalib.accesswidener",
 	"depends": {
