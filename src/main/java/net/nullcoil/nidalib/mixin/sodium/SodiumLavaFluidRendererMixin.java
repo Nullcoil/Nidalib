@@ -2,8 +2,10 @@ package net.nullcoil.nidalib.mixin.sodium;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import net.caffeinemc.mods.sodium.client.model.color.ColorProvider;
+import net.caffeinemc.mods.sodium.client.render.chunk.compile.ChunkBuildBuffers;
 import net.caffeinemc.mods.sodium.client.render.chunk.compile.buffers.ChunkModelBuilder;
 import net.caffeinemc.mods.sodium.client.render.chunk.compile.pipeline.DefaultFluidRenderer;
+import net.caffeinemc.mods.sodium.client.render.chunk.terrain.material.DefaultMaterials;
 import net.caffeinemc.mods.sodium.client.render.chunk.terrain.material.Material;
 import net.caffeinemc.mods.sodium.client.render.chunk.translucent_sorting.TranslucentGeometryCollector;
 import net.caffeinemc.mods.sodium.client.world.LevelSlice;
@@ -15,6 +17,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.nullcoil.nidalib.client.lava.LavaHeatClient;
 import net.nullcoil.nidalib.client.lava.LavaRenderPass;
+import net.nullcoil.nidalib.compat.sodium.SodiumLavaBuffers;
 import net.nullcoil.nidalib.lava.LavaStage;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,7 +31,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * mixin never runs there. This does the same two things to Sodium's renderer: draw lava
  * once per heat stage (crossfading between two), and swap in the stage sprites.
  *
- * <p>The crossfade's opacity still comes from {@code LavaHeatClient.TINT_SOURCE}: Sodium
+ * <p>The opaque base layer is drawn in the solid pass (see {@code SodiumLavaBuffersMixin}),
+ * so shaders don't treat lava like water. The crossfade's opacity still comes from {@code LavaHeatClient.TINT_SOURCE}: Sodium
  * reads the lava model's tint source per block and keeps its alpha.
  *
  * <p>Only applied when Sodium is loaded (see {@code SodiumMixinPlugin}).
@@ -55,9 +59,17 @@ public abstract class SodiumLavaFluidRendererMixin {
         int lower = Math.min((int) Math.floor(heat), LavaStage.MAX);
         float blend = heat - lower;
 
+        // The fully opaque base layer goes in the solid pass, like vanilla lava. In the
+        // translucent pass, shader packs treat it like water: see-through at a distance,
+        // reflections, fading into the sky at the edge of render distance. Only the
+        // crossfade layer on top (at biome borders) has to stay translucent.
+        ChunkBuildBuffers buffers = SodiumLavaBuffers.get();
+        Material baseMaterial = buffers != null ? DefaultMaterials.SOLID : material;
+        ChunkModelBuilder baseBuilder = buffers != null ? buffers.get(DefaultMaterials.SOLID) : meshBuilder;
+
         try {
             LavaRenderPass.begin(LavaStage.values()[lower], 255);
-            this.render(level, blockState, fluidState, blockPos, offset, collector, meshBuilder, material, colorProvider, sprites);
+            this.render(level, blockState, fluidState, blockPos, offset, collector, baseBuilder, baseMaterial, colorProvider, sprites);
 
             if (blend >= MIN_BLEND && lower < LavaStage.MAX) {
                 LavaRenderPass.begin(LavaStage.values()[lower + 1], Math.round(blend * 255f));

@@ -10,6 +10,7 @@
 		"LavaFireMixin"
 	],
 	"client": [
+		"LavaFogColorMixin",
 		"LavaFluidModelMixin",
 		"LavaFluidRendererMixin",
 		"LavaFireEntityRendererMixin",

@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "net.nullcoil.nidalib.mixin.c2me",
+	"plugin": "net.nullcoil.nidalib.compat.C2MEMixinPlugin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"C2MESubBiomesMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

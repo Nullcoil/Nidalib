@@ -4,6 +4,7 @@
 	"plugin": "net.nullcoil.nidalib.compat.SodiumMixinPlugin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"SodiumLavaBuffersMixin",
 		"SodiumLavaFluidRendererMixin"
 	],
 	"injectors": {

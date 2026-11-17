@@ -9,12 +9,16 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Climate;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.nullcoil.nidalib.Nidalib;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -41,6 +45,9 @@ public final class SubBiomes {
     // since each world (singleplayer especially) has its own biome registry.
     private static volatile Map<ResourceKey<Biome>, List<Resolved>> resolved = Map.of();
 
+    // Every biome that is some parent's sub-biome, for telling top-level parents apart
+    private static volatile Set<ResourceKey<Biome>> children = Set.of();
+
     private SubBiomes() {}
 
     /** Call during mod initialization. Rules are checked in the order they were added. */
@@ -52,11 +59,15 @@ public final class SubBiomes {
     public static void init() {
         ServerLifecycleEvents.SERVER_STARTING.register(server ->
                 resolve(server.registryAccess().lookupOrThrow(Registries.BIOME)));
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> resolved = Map.of());
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            resolved = Map.of();
+            children = Set.of();
+        });
     }
 
     private static synchronized void resolve(HolderLookup.RegistryLookup<Biome> biomes) {
         Map<ResourceKey<Biome>, List<Resolved>> map = new ConcurrentHashMap<>();
+        Set<ResourceKey<Biome>> childKeys = new HashSet<>();
         for (Entry entry : ENTRIES) {
             var child = biomes.get(entry.child());
             if (child.isEmpty()) {
@@ -64,8 +75,17 @@ public final class SubBiomes {
                 continue;
             }
             map.computeIfAbsent(entry.parent(), k -> new ArrayList<>()).add(new Resolved(child.get(), entry.rule()));
+            childKeys.add(entry.child());
         }
         resolved = map;
+        children = childKeys;
+    }
+
+    /** Whether any sub-biome is registered inside this biome (cheap, no climate sampling). */
+    public static boolean hasSubBiomes(Holder<Biome> biome) {
+        Map<ResourceKey<Biome>, List<Resolved>> map = resolved;
+        if (map.isEmpty()) return false;
+        return biome.unwrapKey().map(map::containsKey).orElse(false);
     }
 
     /**
@@ -113,6 +133,46 @@ public final class SubBiomes {
             children = next.unwrapKey().map(map::get).orElse(null);
         }
         return result;
+    }
+
+    /**
+     * Applies sub-biomes to a chunk's stored biomes. For world generators that fill biomes
+     * without asking the biome source (C2ME's GPU world generation copies the climate table
+     * and picks biomes itself), so the {@code getNoiseBiome} hook never ran for this chunk.
+     *
+     * <p>Only touches cells holding a top-level parent (e.g. Soul Sand Valley), so cells
+     * that already got their sub-biome are left alone and running this twice is harmless.
+     */
+    public static void applyToChunk(ChunkAccess chunk, BiomeSource source, Climate.Sampler sampler) {
+        Map<ResourceKey<Biome>, List<Resolved>> map = resolved;
+        if (map.isEmpty()) return;
+        if (!(source instanceof ClimateParameterAccess access)) return;
+
+        // Cheap check first: skip chunks with no top-level parent anywhere in them
+        boolean any = false;
+        for (LevelChunkSection section : chunk.getSections()) {
+            if (section.getBiomes().maybeHas(SubBiomes::isTopLevelParent)) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) return;
+
+        Climate.ParameterList<Holder<Biome>> parameters = access.nidalib$parameters();
+        // While a section refills, getNoiseBiome still reads its old (stored) biomes
+        chunk.fillBiomesFromNoise((x, y, z, s) -> {
+            Holder<Biome> stored = chunk.getNoiseBiome(x, y, z);
+            if (!isTopLevelParent(stored)) return stored;
+            Holder<Biome> sub = pick(stored, s.sample(x, y, z), parameters);
+            return sub != null ? sub : stored;
+        }, sampler);
+    }
+
+    /** Has sub-biomes, and isn't a sub-biome itself (e.g. Soul Sand Valley, not the Crags). */
+    private static boolean isTopLevelParent(Holder<Biome> biome) {
+        return biome.unwrapKey()
+                .map(key -> resolved.containsKey(key) && !children.contains(key))
+                .orElse(false);
     }
 
     /** Adds every sub-biome whose parent this biome source can produce. */

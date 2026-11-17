@@ -1,7 +1,8 @@
 package net.nullcoil.nidalib.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
-import com.llamalad7.mixinextras.sugar.Local;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.core.Holder;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Climate;
@@ -25,15 +26,22 @@ public abstract class MultiNoiseBiomeSourceMixin implements ClimateParameterAcce
     }
 
     /**
-     * Every biome lookup (generation, /locate, F3) ends here,
-     * so swapping the result covers all of them.
+     * Every biome lookup (generation, /locate, F3) goes through this method, so swapping
+     * its result covers all of them.
+     *
+     * <p>Wrapped as a whole rather than hooking {@code getNoiseBiome(TargetPoint)}: biome
+     * mods like Biolith (used by Traverse and many packs) cancel this method at its head
+     * and pick the biome themselves, so the inner method never runs. {@code @WrapMethod}
+     * sits outside every other mixin's injections, so it sees the final pick either way.
      */
-    @ModifyReturnValue(
-            method = "getNoiseBiome(Lnet/minecraft/world/level/biome/Climate$TargetPoint;)Lnet/minecraft/core/Holder;",
-            at = @At("RETURN"))
-    private Holder<Biome> nidalib$applySubBiomes(Holder<Biome> picked,
-                                                 @Local(argsOnly = true) Climate.TargetPoint point) {
-        Holder<Biome> sub = SubBiomes.pick(picked, point, this.parameters());
+    @WrapMethod(method = "getNoiseBiome(IIILnet/minecraft/world/level/biome/Climate$Sampler;)Lnet/minecraft/core/Holder;")
+    private Holder<Biome> nidalib$applySubBiomes(int x, int y, int z, Climate.Sampler sampler,
+                                                 Operation<Holder<Biome>> original) {
+        Holder<Biome> picked = original.call(x, y, z, sampler);
+        // Skip the extra climate sample for the (vast majority of) biomes with no sub-biomes
+        if (!SubBiomes.hasSubBiomes(picked)) return picked;
+
+        Holder<Biome> sub = SubBiomes.pick(picked, sampler.sample(x, y, z), this.parameters());
         return sub != null ? sub : picked;
     }
 
