@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "net.nullcoil.nidalib.mixin.sodium",
+	"plugin": "net.nullcoil.nidalib.compat.SodiumMixinPlugin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"SodiumLavaFluidRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
