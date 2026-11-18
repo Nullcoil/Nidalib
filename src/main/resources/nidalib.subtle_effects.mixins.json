@@ -4,6 +4,7 @@
 	"plugin": "net.nullcoil.nidalib.compat.SubtleEffectsMixinPlugin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"FlameGeyserTickerMixin",
 		"RippleProviderMixin",
 		"SplashRippleParticleMixin",
 		"SparkProviderMixin",
