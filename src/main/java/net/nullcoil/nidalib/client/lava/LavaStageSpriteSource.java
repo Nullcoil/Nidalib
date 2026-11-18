@@ -39,18 +39,22 @@ import java.util.Optional;
  *   "output": "nidalib:block/lava_{stage}_still",
  *   "shader_blend": true }
  * }</pre>
- * produces nidalib:block/lava_red_still, lava_yellow_still, and so on. With
+ * produces nidalib:block/lava_red_still, lava_yellow_still, and so on.
+ * "scaled_lightness" uses {@link LavaStage#apply(int, boolean) scaled lightness}, which keeps
+ * detail in bright textures (the lava bucket) where the usual added lightness would clip
+ * them to white. With
  * "shader_blend", it also generates the textures {@link LavaShaderBlend} needs for the
  * configured mode: dither patterns, or pre-blended stage pairs.
  */
 @Environment(EnvType.CLIENT)
-public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend) implements SpriteSource {
+public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend, boolean scaledLightness) implements SpriteSource {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final MapCodec<LavaStageSpriteSource> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             Identifier.CODEC.listOf().fieldOf("sources").forGetter(LavaStageSpriteSource::sources),
             Codec.STRING.fieldOf("output").forGetter(LavaStageSpriteSource::output),
-            Codec.BOOL.optionalFieldOf("shader_blend", false).forGetter(LavaStageSpriteSource::shaderBlend)
+            Codec.BOOL.optionalFieldOf("shader_blend", false).forGetter(LavaStageSpriteSource::shaderBlend),
+            Codec.BOOL.optionalFieldOf("scaled_lightness", false).forGetter(LavaStageSpriteSource::scaledLightness)
     ).apply(instance, LavaStageSpriteSource::new));
 
     /** Fills a "{stage}" template, e.g. "nidalib:block/fire_0_{stage}" -> nidalib:block/fire_0_red. */
@@ -85,7 +89,7 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             Map<LavaStage, Supplier<Pixels>> stages = new EnumMap<>(LavaStage.class);
             for (LavaStage stage : LavaStage.values()) {
                 stages.put(stage, stage.isGenerated()
-                        ? Suppliers.memoize(() -> base.get().recolored(stage))
+                        ? Suppliers.memoize(() -> base.get().recolored(stage, scaledLightness))
                         : base);
             }
 
@@ -147,9 +151,9 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             }
         }
 
-        Pixels recolored(LavaStage stage) {
+        Pixels recolored(LavaStage stage, boolean scaledLightness) {
             int[] result = new int[argb.length];
-            for (int i = 0; i < argb.length; i++) result[i] = stage.apply(argb[i]);
+            for (int i = 0; i < argb.length; i++) result[i] = stage.apply(argb[i], scaledLightness);
             return new Pixels(width, height, result);
         }
 

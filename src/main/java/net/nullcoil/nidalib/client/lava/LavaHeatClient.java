@@ -3,6 +3,7 @@ package net.nullcoil.nidalib.client.lava;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.SpriteSourceRegistry;
+import net.minecraft.client.color.item.ItemTintSources;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -40,6 +41,8 @@ public final class LavaHeatClient {
     /** Called by Nidalib's client initializer. */
     public static void init() {
         SpriteSourceRegistry.register(Nidalib.id("lava_stages"), LavaStageSpriteSource.MAP_CODEC);
+        // Lava bucket overlay layers, faded in and out by the heat where the player stands
+        ItemTintSources.ID_MAPPER.put(Nidalib.id("lava_stage"), LavaStageTint.MAP_CODEC);
     }
 
     /**

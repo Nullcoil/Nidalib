@@ -88,8 +88,9 @@ public final class LavaRenderPass {
         return sprite != null ? sprite : fallback;
     }
 
+    /** A sprite from the block atlas, or null if it isn't there. */
     @Nullable
-    private static TextureAtlasSprite atlasSprite(Identifier id) {
+    static TextureAtlasSprite atlasSprite(Identifier id) {
         TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS).getSprite(id);
         // Missing sprites come back as the missing texture rather than null
         return sprite.contents().name().getPath().equals("missingno") ? null : sprite;

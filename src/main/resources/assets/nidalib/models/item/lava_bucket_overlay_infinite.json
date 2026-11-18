@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "nidalib:item/lava_bucket_overlay_infinite"
+  }
+}

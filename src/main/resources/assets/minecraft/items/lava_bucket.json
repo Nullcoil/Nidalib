@@ -1,0 +1,71 @@
+{
+  "model": {
+    "type": "minecraft:composite",
+    "models": [
+      {
+        "type": "minecraft:model",
+        "model": "minecraft:item/bucket"
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_red",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "red"
+          }
+        ]
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_vanilla",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "vanilla"
+          }
+        ]
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_yellow",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "yellow"
+          }
+        ]
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_white",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "white"
+          }
+        ]
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_infinite",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "infinite"
+          }
+        ]
+      },
+      {
+        "type": "minecraft:model",
+        "model": "nidalib:item/lava_bucket_overlay_soul",
+        "tints": [
+          {
+            "type": "nidalib:lava_stage",
+            "stage": "soul"
+          }
+        ]
+      }
+    ]
+  }
+}

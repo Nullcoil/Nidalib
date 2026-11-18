@@ -1,0 +1,10 @@
+{
+  "sources": [
+    {
+      "type": "nidalib:lava_stages",
+      "sources": ["nidalib:item/lava_bucket_overlay"],
+      "output": "nidalib:item/lava_bucket_overlay_{stage}",
+      "scaled_lightness": true
+    }
+  ]
+}

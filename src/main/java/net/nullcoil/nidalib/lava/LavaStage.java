@@ -16,12 +16,12 @@ package net.nullcoil.nidalib.lava;
  */
 public enum LavaStage {
     //       name         hue      chroma   lightness
-    RED     ("red",      -15.00f,   0.00f,  -10.00f),
-    VANILLA ("vanilla",    0.00f,   0.00f,    0.00f),
-    YELLOW  ("yellow",    20.00f,   0.00f,   12.00f),
-    WHITE   ("white",      0.00f, -60.00f,   35.00f),
-    INFINITE("infinite", 220.00f, -45.00f,   40.00f),
-    SOUL    ("soul",     145.61f,  64.97f,   17.20f); // dialed in on vanilla lava in GIMP for Soulscorch
+    RED     ("red",       -15.00f,   0.00f,  -10.00f),
+    VANILLA ("vanilla",     0.00f,   0.00f,    0.00f),
+    YELLOW  ("yellow",     20.00f,   0.00f,   12.00f),
+    WHITE   ("white",       0.00f, -60.00f,   25.00f),
+    INFINITE("infinite", -145.00f, -45.00f,   25.00f),
+    SOUL    ("soul",      180.00f,   0.00f,   30.00f); // dialed in on vanilla lava in GIMP for Soulscorch
 
     public final String id;
     private final float hue;
@@ -49,10 +49,27 @@ public enum LavaStage {
 
     /** Applies this stage's Hue-Chroma adjustment to one ARGB pixel. */
     public int apply(int argb) {
+        return apply(argb, false);
+    }
+
+    /**
+     * Applies this stage's Hue-Chroma adjustment to one ARGB pixel.
+     *
+     * @param scaledLightness false: lightness is added, like GIMP (what the stages are tuned
+     *     with). Bright pixels can clip to pure white and lose their detail. True: lightness
+     *     scales instead, moving every pixel the same share of the way toward white (or
+     *     black, for negative values), so differences between pixels survive. A pixel at
+     *     lightness 0 moves by exactly the stage's value either way.
+     */
+    public int apply(int argb, boolean scaledLightness) {
         int a = (argb >>> 24) & 0xFF;
         double[] lch = rgbToLch((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
 
-        double l = Math.max(0, Math.min(100, lch[0] + lightness));
+        double l;
+        if (!scaledLightness) l = lch[0] + lightness;
+        else if (lightness >= 0) l = 100 - (100 - lch[0]) * (1 - lightness / 100.0);
+        else l = lch[0] * (1 + lightness / 100.0);
+        l = Math.max(0, Math.min(100, l));
         double c = Math.max(0, lch[1] + chroma);
         double h = lch[2] + hue;
 
