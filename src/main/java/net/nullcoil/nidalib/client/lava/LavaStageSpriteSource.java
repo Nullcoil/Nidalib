@@ -11,6 +11,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.renderer.texture.atlas.SpriteSource;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.nullcoil.nidalib.lava.LavaStage;
@@ -116,23 +117,40 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
     }
 
     /**
-     * A gray copy (brightness only, brightest pixel white) plus, once per stage, the tint
-     * that turns it back into roughly that stage's color: the stage's average color divided
-     * by the gray copy's average brightness. LoD renderers draw lava with these.
+     * A gray copy plus, once per stage, the tint that turns it back into that stage's
+     * average color. LoD renderers draw lava with these.
+     *
+     * <p>A tint can only darken (it's multiplied in, at most white), so the gray copy has
+     * to average at least as bright as the brightest channel of any stage's average color,
+     * or that channel clips and the lava comes out too dark. So the gray copy keeps only as
+     * much of the texture's light-and-dark pattern as that allows: it's white with the
+     * pattern faded in by {@code contrast}, and every stage's tint lands on its exact
+     * average color.
      */
     private void addNeutral(Resource original, Supplier<Pixels> base, Map<LavaStage, Supplier<Pixels>> stages, Output out) {
-        Supplier<Pixels> gray = Suppliers.memoize(() -> base.get().neutral());
-        out.add(neutralId(output), new Resource(original.source(), () -> gray.get().encode(), original::metadata));
+        Map<LavaStage, Integer> averages = new EnumMap<>(LavaStage.class);
+        float brightest = 0;
+        for (LavaStage stage : LavaStage.values()) {
+            int average = stages.get(stage).get().averageColor();
+            averages.put(stage, average);
+            for (int shift = 0; shift <= 16; shift += 8) brightest = Math.max(brightest, ((average >> shift) & 0xFF) / 255f);
+        }
+
+        // Average of the full-contrast pattern (brightest pixel = 1); fading it toward white
+        // by (1 - contrast) gives an average of 1 - contrast * (1 - patternAverage)
+        float patternAverage = base.get().neutral(1).averageBrightness();
+        float contrast = patternAverage >= 1 ? 0 : Mth.clamp((1 - brightest) / (1 - patternAverage), 0, 1);
+        Pixels gray = base.get().neutral(contrast);
+        out.add(neutralId(output), new Resource(original.source(), gray::encode, original::metadata));
 
         if (output.equals(LavaRenderPass.LAVA_STILL)) {
-            float grayAverage = gray.get().averageBrightness();
+            float grayAverage = Math.max(gray.averageBrightness(), 1e-3f);
             Map<LavaStage, Integer> tints = new EnumMap<>(LavaStage.class);
             for (LavaStage stage : LavaStage.values()) {
-                int average = stages.get(stage).get().averageColor();
+                int average = averages.get(stage);
                 int tint = 0xFF000000;
                 for (int shift = 0; shift <= 16; shift += 8) {
-                    float channel = ((average >> shift) & 0xFF) / Math.max(grayAverage, 1e-3f);
-                    tint |= Math.min(255, Math.round(channel)) << shift;
+                    tint |= Math.min(255, Math.round(((average >> shift) & 0xFF) / grayAverage)) << shift;
                 }
                 tints.put(stage, tint);
             }
@@ -185,8 +203,11 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             }
         }
 
-        /** Brightness only, scaled so the brightest pixel is white. */
-        Pixels neutral() {
+        /**
+         * Brightness only: the brightest pixel white, and the light-and-dark pattern faded
+         * toward white by {@code 1 - contrast} (1 keeps the full pattern, 0 is flat white).
+         */
+        Pixels neutral(float contrast) {
             float max = 0;
             float[] luma = new float[argb.length];
             for (int i = 0; i < argb.length; i++) {
@@ -196,7 +217,8 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             }
             int[] result = new int[argb.length];
             for (int i = 0; i < argb.length; i++) {
-                int g = max <= 0 ? 255 : Math.min(255, Math.round(luma[i] / max * 255));
+                float pattern = max <= 0 ? 1 : luma[i] / max;
+                int g = Math.min(255, Math.round((1 - contrast * (1 - pattern)) * 255));
                 result[i] = (argb[i] & 0xFF000000) | (g << 16) | (g << 8) | g;
             }
             return new Pixels(width, height, result);
