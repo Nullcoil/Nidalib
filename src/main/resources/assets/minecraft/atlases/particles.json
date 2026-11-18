@@ -1,0 +1,75 @@
+{
+  "sources": [
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "minecraft:particle/lava"
+      ],
+      "output": "nidalib:lava_{stage}"
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_0"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_0_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_1"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_1_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_2"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_2_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_3"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_3_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_4"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_4_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_5"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_5_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_6"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_6_{stage}",
+      "optional": true
+    },
+    {
+      "type": "nidalib:lava_stages",
+      "sources": [
+        "subtle_effects:particle/lava_splash_ripple_7"
+      ],
+      "output": "nidalib:subtle_effects/lava_splash_ripple_7_{stage}",
+      "optional": true
+    }
+  ]
+}

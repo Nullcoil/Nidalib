@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"package": "net.nullcoil.nidalib.mixin.subtle_effects",
+	"plugin": "net.nullcoil.nidalib.compat.SubtleEffectsMixinPlugin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"RippleProviderMixin",
+		"SplashRippleParticleMixin",
+		"SparkProviderMixin",
+		"SplashParticleMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

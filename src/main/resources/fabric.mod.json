@@ -28,7 +28,8 @@
 	"mixins": [
 		"nidalib.mixins.json",
 		"nidalib.sodium.mixins.json",
-		"nidalib.c2me.mixins.json"
+		"nidalib.c2me.mixins.json",
+		"nidalib.subtle_effects.mixins.json"
 	],
 	"accessWidener": "nidalib.accesswidener",
 	"depends": {

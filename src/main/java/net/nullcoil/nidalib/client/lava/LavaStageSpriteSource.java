@@ -44,17 +44,19 @@ import java.util.Optional;
  * detail in bright textures (the lava bucket) where the usual added lightness would clip
  * them to white. With
  * "shader_blend", it also generates the textures {@link LavaShaderBlend} needs for the
- * configured mode: dither patterns, or pre-blended stage pairs.
+ * configured mode: dither patterns, or pre-blended stage pairs. "optional" skips the
+ * missing-texture warning, for textures from mods that may not be installed.
  */
 @Environment(EnvType.CLIENT)
-public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend, boolean scaledLightness) implements SpriteSource {
+public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend, boolean scaledLightness, boolean optional) implements SpriteSource {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final MapCodec<LavaStageSpriteSource> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             Identifier.CODEC.listOf().fieldOf("sources").forGetter(LavaStageSpriteSource::sources),
             Codec.STRING.fieldOf("output").forGetter(LavaStageSpriteSource::output),
             Codec.BOOL.optionalFieldOf("shader_blend", false).forGetter(LavaStageSpriteSource::shaderBlend),
-            Codec.BOOL.optionalFieldOf("scaled_lightness", false).forGetter(LavaStageSpriteSource::scaledLightness)
+            Codec.BOOL.optionalFieldOf("scaled_lightness", false).forGetter(LavaStageSpriteSource::scaledLightness),
+            Codec.BOOL.optionalFieldOf("optional", false).forGetter(LavaStageSpriteSource::optional)
     ).apply(instance, LavaStageSpriteSource::new));
 
     /** Fills a "{stage}" template, e.g. "nidalib:block/fire_0_{stage}" -> nidalib:block/fire_0_red. */
@@ -103,7 +105,7 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             if (shaderBlend) addShaderBlend(original, stages, out);
             return;
         }
-        LOGGER.warn("No texture found for lava stages {} (tried {})", output, sources);
+        if (!optional) LOGGER.warn("No texture found for lava stages {} (tried {})", output, sources);
     }
 
     private void addShaderBlend(Resource original, Map<LavaStage, Supplier<Pixels>> stages, Output out) {

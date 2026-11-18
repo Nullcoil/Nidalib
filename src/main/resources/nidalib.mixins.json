@@ -7,7 +7,8 @@
 		"GuiMixin",
 		"LivingEntityMixin",
 		"MultiNoiseBiomeSourceMixin",
-		"LavaFireMixin"
+		"LavaFireMixin",
+		"LavaMapColorMixin"
 	],
 	"client": [
 		"LavaFogColorMixin",
@@ -16,7 +17,10 @@
 		"LavaFireEntityRendererMixin",
 		"LavaFireFlameMixin",
 		"LavaFireOverlayMixin",
-		"LavaFireRenderStateMixin"
+		"LavaFireRenderStateMixin",
+		"LavaEmberParticleMixin",
+		"LavaDripParticleMixin",
+		"SingleQuadParticleAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
