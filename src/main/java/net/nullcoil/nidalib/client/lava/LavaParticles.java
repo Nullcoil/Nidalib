@@ -20,8 +20,8 @@ import net.nullcoil.nidalib.mixin.SingleQuadParticleAccessor;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lava particles in their lava stage's colors.
@@ -34,8 +34,10 @@ public final class LavaParticles {
     /** Template for the particle atlas's generated ember sprites (see atlases/particles.json). */
     public static final String LAVA = "nidalib:lava_{stage}";
 
-    private static final Map<Long, Integer> COLORS = new HashMap<>();
-    private static final Map<Identifier, Identifier> TEXTURES = new HashMap<>();
+    // Concurrent: particle mods like AsyncParticles tick particles off the render thread
+    private static final Map<Long, Integer> COLORS = new ConcurrentHashMap<>();
+    private static final Map<Identifier, Identifier> TEXTURES = new ConcurrentHashMap<>();
+    private static final Map<Identifier, Boolean> PENDING = new ConcurrentHashMap<>();
 
     private LavaParticles() {}
 
@@ -107,7 +109,10 @@ public final class LavaParticles {
 
     /**
      * A standalone texture (not an atlas sprite, e.g. Subtle Effects' splash frames) recolored
-     * to a stage. Made the first time it's asked for and kept for the session.
+     * to a stage. Made the first time it's asked for and kept for the session. Textures can
+     * only be uploaded on the render thread, so when asked from elsewhere (a particle mod
+     * ticking particles in the background), the copy is queued there and the original is
+     * used until it exists.
      */
     public static Identifier texture(Identifier texture, LavaStage stage) {
         if (!stage.isGenerated()) return texture;
@@ -116,6 +121,16 @@ public final class LavaParticles {
         if (made != null) return made;
 
         Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) {
+            if (PENDING.putIfAbsent(id, Boolean.TRUE) == null) {
+                minecraft.execute(() -> {
+                    texture(texture, stage);
+                    PENDING.remove(id);
+                });
+            }
+            return texture;
+        }
+
         try (InputStream in = minecraft.getResourceManager().open(texture)) {
             NativeImage image = NativeImage.read(in);
             for (int y = 0; y < image.getHeight(); y++) {

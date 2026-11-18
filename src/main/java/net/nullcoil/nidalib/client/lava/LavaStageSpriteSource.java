@@ -48,7 +48,7 @@ import java.util.Optional;
  * missing-texture warning, for textures from mods that may not be installed.
  */
 @Environment(EnvType.CLIENT)
-public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend, boolean scaledLightness, boolean optional) implements SpriteSource {
+public record LavaStageSpriteSource(List<Identifier> sources, String output, boolean shaderBlend, boolean scaledLightness, boolean optional, boolean neutral) implements SpriteSource {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final MapCodec<LavaStageSpriteSource> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
@@ -56,12 +56,18 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             Codec.STRING.fieldOf("output").forGetter(LavaStageSpriteSource::output),
             Codec.BOOL.optionalFieldOf("shader_blend", false).forGetter(LavaStageSpriteSource::shaderBlend),
             Codec.BOOL.optionalFieldOf("scaled_lightness", false).forGetter(LavaStageSpriteSource::scaledLightness),
-            Codec.BOOL.optionalFieldOf("optional", false).forGetter(LavaStageSpriteSource::optional)
+            Codec.BOOL.optionalFieldOf("optional", false).forGetter(LavaStageSpriteSource::optional),
+            Codec.BOOL.optionalFieldOf("neutral", false).forGetter(LavaStageSpriteSource::neutral)
     ).apply(instance, LavaStageSpriteSource::new));
 
     /** Fills a "{stage}" template, e.g. "nidalib:block/fire_0_{stage}" -> nidalib:block/fire_0_red. */
     public static Identifier stageId(String template, LavaStage stage) {
         return Identifier.parse(template.replace("{stage}", stage.id));
+    }
+
+    /** The gray copy for LoD renderers ({@link LavaVoxy}), e.g. nidalib:block/lava_neutral_still. */
+    public static Identifier neutralId(String template) {
+        return Identifier.parse(template.replace("{stage}", "neutral"));
     }
 
     /** A stage's dither pattern, e.g. nidalib:block/lava_soul_still_dither_3. */
@@ -103,9 +109,35 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             }
 
             if (shaderBlend) addShaderBlend(original, stages, out);
+            if (neutral) addNeutral(original, base, stages, out);
             return;
         }
         if (!optional) LOGGER.warn("No texture found for lava stages {} (tried {})", output, sources);
+    }
+
+    /**
+     * A gray copy (brightness only, brightest pixel white) plus, once per stage, the tint
+     * that turns it back into roughly that stage's color: the stage's average color divided
+     * by the gray copy's average brightness. LoD renderers draw lava with these.
+     */
+    private void addNeutral(Resource original, Supplier<Pixels> base, Map<LavaStage, Supplier<Pixels>> stages, Output out) {
+        Supplier<Pixels> gray = Suppliers.memoize(() -> base.get().neutral());
+        out.add(neutralId(output), new Resource(original.source(), () -> gray.get().encode(), original::metadata));
+
+        if (output.equals(LavaRenderPass.LAVA_STILL)) {
+            float grayAverage = gray.get().averageBrightness();
+            Map<LavaStage, Integer> tints = new EnumMap<>(LavaStage.class);
+            for (LavaStage stage : LavaStage.values()) {
+                int average = stages.get(stage).get().averageColor();
+                int tint = 0xFF000000;
+                for (int shift = 0; shift <= 16; shift += 8) {
+                    float channel = ((average >> shift) & 0xFF) / Math.max(grayAverage, 1e-3f);
+                    tint |= Math.min(255, Math.round(channel)) << shift;
+                }
+                tints.put(stage, tint);
+            }
+            LavaVoxy.setTints(tints);
+        }
     }
 
     private void addShaderBlend(Resource original, Map<LavaStage, Supplier<Pixels>> stages, Output out) {
@@ -151,6 +183,50 @@ public record LavaStageSpriteSource(List<Identifier> sources, String output, boo
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        /** Brightness only, scaled so the brightest pixel is white. */
+        Pixels neutral() {
+            float max = 0;
+            float[] luma = new float[argb.length];
+            for (int i = 0; i < argb.length; i++) {
+                int c = argb[i];
+                luma[i] = 0.2126f * ((c >> 16) & 0xFF) + 0.7152f * ((c >> 8) & 0xFF) + 0.0722f * (c & 0xFF);
+                if ((c >>> 24) != 0) max = Math.max(max, luma[i]);
+            }
+            int[] result = new int[argb.length];
+            for (int i = 0; i < argb.length; i++) {
+                int g = max <= 0 ? 255 : Math.min(255, Math.round(luma[i] / max * 255));
+                result[i] = (argb[i] & 0xFF000000) | (g << 16) | (g << 8) | g;
+            }
+            return new Pixels(width, height, result);
+        }
+
+        /** Average gray level of the visible pixels, 0 to 1 (for a {@link #neutral} copy). */
+        float averageBrightness() {
+            long sum = 0;
+            int count = 0;
+            for (int c : argb) {
+                if ((c >>> 24) == 0) continue;
+                sum += c & 0xFF;
+                count++;
+            }
+            return count == 0 ? 1 : sum / (count * 255f);
+        }
+
+        /** Average RGB of the visible pixels. */
+        int averageColor() {
+            long r = 0, g = 0, b = 0;
+            int count = 0;
+            for (int c : argb) {
+                if ((c >>> 24) == 0) continue;
+                r += (c >> 16) & 0xFF;
+                g += (c >> 8) & 0xFF;
+                b += c & 0xFF;
+                count++;
+            }
+            if (count == 0) return 0xFFFFFF;
+            return (int) (r / count) << 16 | (int) (g / count) << 8 | (int) (b / count);
         }
 
         Pixels recolored(LavaStage stage, boolean scaledLightness) {

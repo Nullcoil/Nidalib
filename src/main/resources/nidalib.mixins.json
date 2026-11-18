@@ -20,7 +20,8 @@
 		"LavaFireRenderStateMixin",
 		"LavaEmberParticleMixin",
 		"LavaDripParticleMixin",
-		"SingleQuadParticleAccessor"
+		"SingleQuadParticleAccessor",
+		"ParticlePositionAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -10,6 +10,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.nullcoil.nidalib.client.lava.LavaHeatClient;
 import net.nullcoil.nidalib.client.lava.LavaRenderPass;
+import net.nullcoil.nidalib.client.lava.LavaVoxy;
 import net.nullcoil.nidalib.lava.LavaStage;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -45,6 +46,18 @@ public abstract class LavaFluidRendererMixin {
         // Our own nested calls (below) render normally
         if (LavaRenderPass.active()) return;
         if (!fluidState.getType().isSame(Fluids.LAVA)) return;
+
+        // An LoD renderer (Voxy) baking lava's texture: one gray pass, tinted per biome later
+        if (LavaVoxy.baking()) {
+            try {
+                LavaRenderPass.beginNeutral();
+                this.tesselate(level, pos, output, blockState, fluidState);
+            } finally {
+                LavaRenderPass.end();
+            }
+            ci.cancel();
+            return;
+        }
 
         float heat = LavaHeatClient.at(level, pos);
         int lower = Math.min((int) Math.floor(heat), LavaStage.MAX);

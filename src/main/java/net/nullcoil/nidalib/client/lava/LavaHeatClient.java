@@ -34,6 +34,12 @@ public final class LavaHeatClient {
 
         @Override
         public int colorInWorld(BlockState state, BlockAndTintGetter level, BlockPos pos) {
+            if (LavaRenderPass.neutral()) {
+                // Baking for an LoD renderer: asking for a biome tint is how Voxy learns this
+                // lava gets tinted (per biome, by LavaVoxy's tint source); the pixels stay white
+                level.getBlockTint(pos, LavaVoxy.RESOLVER);
+                return -1;
+            }
             return (LavaRenderPass.alpha() << 24) | 0xFFFFFF;
         }
     };

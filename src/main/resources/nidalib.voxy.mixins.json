@@ -1,0 +1,13 @@
+{
+	"required": false,
+	"package": "net.nullcoil.nidalib.mixin.voxy",
+	"plugin": "net.nullcoil.nidalib.compat.VoxyMixinPlugin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"VoxyFluidBakeMixin",
+		"VoxyTintSourcesMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
