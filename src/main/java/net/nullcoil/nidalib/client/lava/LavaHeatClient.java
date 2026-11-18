@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.nullcoil.nidalib.Nidalib;
+import net.nullcoil.nidalib.client.config.NidalibClientConfig;
 import net.nullcoil.nidalib.lava.LavaHeat;
 import net.nullcoil.nidalib.lava.LavaStage;
 
@@ -49,6 +50,8 @@ public final class LavaHeatClient {
         SpriteSourceRegistry.register(Nidalib.id("lava_stages"), LavaStageSpriteSource.MAP_CODEC);
         // Lava bucket overlay layers, faded in and out by the heat where the player stands
         ItemTintSources.ID_MAPPER.put(Nidalib.id("lava_stage"), LavaStageTint.MAP_CODEC);
+        // Loading the config applies the Blend Width setting to LavaHeat
+        NidalibClientConfig.get();
     }
 
     /**

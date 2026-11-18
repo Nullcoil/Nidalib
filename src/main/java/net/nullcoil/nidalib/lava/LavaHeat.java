@@ -9,6 +9,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,8 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Drives the lava fluid's color and the color of fire caught from lava.
  *
  * <p>Borders fade from the hotter side: a biome's lava is its pure color right up to its
- * border, and that heat then cools off into the cooler neighbor over {@link #FADE_DISTANCE}
- * blocks. Lava and fire both use {@link #faded}, so they always agree.
+ * border, and that heat then cools off into the cooler neighbor over the
+ * {@linkplain #fadeDistance() fade distance}, eased with a smoothstep curve. Lava and fire both use {@link #faded}, so they always agree.
  *
  * <p>Every biome is {@link LavaStage#VANILLA} unless a mod says otherwise, so Nidalib
  * on its own changes nothing. Call from your <b>main</b> initializer (the server needs
@@ -51,8 +52,24 @@ public final class LavaHeat {
         return HEAT.getOrDefault(biome, DEFAULT_HEAT);
     }
 
+    /** Fade distances the client setting offers, in blocks. The first is the default. */
+    public static final List<Integer> FADE_DISTANCE_OPTIONS = List.of(8, 12, 16, 24);
+
+    private static volatile int fadeDistance = FADE_DISTANCE_OPTIONS.getFirst();
+
     /** How many blocks a hotter biome's heat reaches into a cooler neighbor. */
-    public static final int FADE_DISTANCE = 8;
+    public static int fadeDistance() {
+        return fadeDistance;
+    }
+
+    /**
+     * Sets the fade distance (Nidalib's Blend Width setting does this on the client).
+     * A dedicated server keeps the default; that only affects which stage lava fire
+     * catches at borders, never whether it's soul fire, which needs full soul heat.
+     */
+    public static void setFadeDistance(int blocks) {
+        fadeDistance = Mth.clamp(blocks, 1, 64);
+    }
 
     /** Unblended heat of the biome at a position. Works on both sides. */
     public static float at(Level level, BlockPos pos) {
@@ -63,8 +80,8 @@ public final class LavaHeat {
      * Heat at a position with border fades applied. Works on both sides.
      *
      * <p>Starts from this spot's own biome, then looks at the biome cells within
-     * {@link #FADE_DISTANCE}: any hotter one pulls the heat up, fully at its edge and
-     * fading linearly to nothing at the fade distance. So the transition always starts at
+     * the {@linkplain #fadeDistance() fade distance}: any hotter one pulls the heat up,
+     * fully at its edge and easing off (smoothstep) to nothing at the fade distance. So the transition always starts at
      * the hotter biome's color and lives entirely on the cooler side.
      */
     public static float faded(LevelReader level, BlockPos pos) {
@@ -73,23 +90,29 @@ public final class LavaHeat {
 
         float own = heatOf(level.getNoiseBiome(qx, qy, qz));
         float heat = own;
-        int reach = Mth.ceil(FADE_DISTANCE / 4f) + 1; // in biome cells (4 blocks wide)
+        int fade = fadeDistance;
+        int reach = Mth.ceil(fade / 4f) + 1; // in biome cells (4 blocks wide)
 
         for (int dx = -reach; dx <= reach; dx++) {
             for (int dz = -reach; dz <= reach; dz++) {
                 if (dx == 0 && dz == 0) continue;
 
-                float other = heatOf(level.getNoiseBiome(qx + dx, qy, qz + dz));
-                if (other <= heat) continue;
-
-                // Distance from this block to the nearest block of that cell
+                // Distance from this block to the nearest block of that cell. Checked
+                // before the biome lookup, so cells out of reach cost nothing
                 int minX = QuartPos.toBlock(qx + dx), minZ = QuartPos.toBlock(qz + dz);
                 int gapX = Math.max(0, Math.max(minX - x, x - (minX + 3)));
                 int gapZ = Math.max(0, Math.max(minZ - z, z - (minZ + 3)));
                 float distance = Mth.sqrt(gapX * gapX + gapZ * gapZ);
-                if (distance >= FADE_DISTANCE) continue;
+                if (distance >= fade) continue;
 
-                heat = Math.max(heat, other - (other - own) * (distance / FADE_DISTANCE));
+                float other = heatOf(level.getNoiseBiome(qx + dx, qy, qz + dz));
+                if (other <= heat) continue;
+
+                // Smoothstep: eases out of the hotter color and into the cooler one, so
+                // neither end of the fade has a visible edge
+                float t = distance / fade;
+                float pull = 1 - t * t * (3 - 2 * t);
+                heat = Math.max(heat, own + (other - own) * pull);
             }
         }
         return heat;

@@ -8,6 +8,7 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.nullcoil.nidalib.Nidalib;
 import net.nullcoil.nidalib.client.lava.LavaShaderBlend;
+import net.nullcoil.nidalib.lava.LavaHeat;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +24,7 @@ public final class NidalibClientConfig {
 
     private int blendLevels = LavaShaderBlend.LEVEL_OPTIONS.getFirst();
     private LavaShaderBlend.Mode shaderBlendMode = LavaShaderBlend.Mode.DITHER;
+    private int blendWidth = LavaHeat.FADE_DISTANCE_OPTIONS.getFirst();
 
     private NidalibClientConfig() {}
 
@@ -49,10 +51,22 @@ public final class NidalibClientConfig {
         this.shaderBlendMode = mode;
     }
 
+    /** How many blocks lava fades over at biome borders; always one of {@link LavaHeat#FADE_DISTANCE_OPTIONS}. */
+    public int blendWidth() {
+        return blendWidth;
+    }
+
+    /** Also applies it to {@link LavaHeat}, so it takes effect immediately. */
+    public void setBlendWidth(int blocks) {
+        this.blendWidth = LavaHeat.FADE_DISTANCE_OPTIONS.contains(blocks) ? blocks : LavaHeat.FADE_DISTANCE_OPTIONS.getFirst();
+        LavaHeat.setFadeDistance(this.blendWidth);
+    }
+
     public synchronized void save() {
         JsonObject json = new JsonObject();
         json.addProperty("blendLevels", blendLevels);
         json.addProperty("shaderBlend", shaderBlendMode.id);
+        json.addProperty("blendWidth", blendWidth);
         try {
             Files.createDirectories(FILE.getParent());
             Files.writeString(FILE, GSON.toJson(json));
@@ -63,6 +77,7 @@ public final class NidalibClientConfig {
 
     private static NidalibClientConfig load() {
         NidalibClientConfig config = new NidalibClientConfig();
+        LavaHeat.setFadeDistance(config.blendWidth);
         if (Files.exists(FILE)) {
             try {
                 JsonObject json = GSON.fromJson(Files.readString(FILE), JsonObject.class);
@@ -70,6 +85,7 @@ public final class NidalibClientConfig {
                     // "ditherLevels" is what earlier versions called it
                     if (json.has("blendLevels")) config.setBlendLevels(json.get("blendLevels").getAsInt());
                     else if (json.has("ditherLevels")) config.setBlendLevels(json.get("ditherLevels").getAsInt());
+                    if (json.has("blendWidth")) config.setBlendWidth(json.get("blendWidth").getAsInt());
                     if (json.has("shaderBlend")) config.setShaderBlendMode(LavaShaderBlend.Mode.byId(json.get("shaderBlend").getAsString()));
                 }
             } catch (Exception e) {
