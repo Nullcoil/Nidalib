@@ -12,7 +12,7 @@ import net.minecraft.world.level.pathfinder.PathFinder;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Navigation for {@link WallClimber}s: paths go over floors, up walls and (if allowed) across
+ * Navigation for mobs that can climb (see {@link WallClimbers}; Nidalib puts it on them automatically): paths go over floors, up walls and (if allowed) across
  * ceilings, and it keeps following them while it's off the ground.
  *
  * <p>Unlike vanilla's {@code WallClimberNavigation} (spiders), which paths along the ground and
@@ -21,14 +21,8 @@ import net.minecraft.world.phys.Vec3;
  * to the ground below it, which would make spots on walls unreachable.
  */
 public class WallClimberNavigation extends PathNavigation {
-    private final WallClimber climber;
-
     public WallClimberNavigation(Mob mob, Level level) {
         super(mob, level);
-        if (!(mob instanceof WallClimber climber)) {
-            throw new IllegalArgumentException(mob.getClass().getName() + " must implement WallClimber");
-        }
-        this.climber = climber;
     }
 
     @Override
@@ -39,7 +33,7 @@ public class WallClimberNavigation extends PathNavigation {
     }
 
     private boolean isClimbing() {
-        WallClimbing climbing = this.climber.getWallClimbing();
+        WallClimbing climbing = WallClimbing.get(this.mob);
         return climbing != null && climbing.isClimbing();
     }
 
@@ -57,13 +51,20 @@ public class WallClimberNavigation extends PathNavigation {
     @Override
     public boolean isStableDestination(BlockPos pos) {
         if (super.isStableDestination(pos)) return true;
+        ClimbSettings settings = WallClimbers.get(this.mob);
+        if (settings == null) return false;
         if (!this.level.getBlockState(pos).getCollisionShape(this.level, pos).isEmpty()) return false;
         for (Direction dir : Direction.values()) {
-            if (dir == Direction.DOWN || !this.climber.canClimbOn(dir)) continue;
+            if (dir == Direction.DOWN || !settings.canClimbOn(dir)) continue;
             BlockPos side = pos.relative(dir);
             if (this.level.getBlockState(side).isFaceSturdy(this.level, side, dir.getOpposite())) return true;
         }
         return false;
+    }
+
+    @Override
+    public boolean canNavigateGround() {
+        return true; // I assume this would be always true but idk
     }
 
     @Override

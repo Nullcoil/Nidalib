@@ -6,7 +6,8 @@ import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Move control for {@link WallClimber}s. On the floor it's vanilla's. On a wall or ceiling it
+ * Move control for mobs that can climb (see {@link WallClimbers}). Nidalib puts it on them
+ * automatically. On the floor it's vanilla's. On a wall or ceiling it
  * moves straight along the surface toward where it wants to go, pressed against it so it
  * stays attached, and turns to face its way in the surface's frame.
  *
@@ -14,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
  * move control should extend this one and call {@code super.tick()}, or call {@code serverTick}
  * itself.
  */
-public class WallClimberMoveControl<T extends Mob & WallClimber> extends MoveControl<T> {
+public class WallClimberMoveControl<T extends Mob> extends MoveControl<T> {
     /** How hard it presses into its surface (blocks per tick). */
     private static final double STICK = 0.08;
     /** Share of the gap to its target velocity closed each tick. */
@@ -28,7 +29,11 @@ public class WallClimberMoveControl<T extends Mob & WallClimber> extends MoveCon
 
     @Override
     public void tick() {
-        WallClimbing climbing = this.mob.getWallClimbing();
+        WallClimbing climbing = WallClimbing.get(this.mob);
+        if (climbing == null) {
+            super.tick();
+            return;
+        }
         boolean moving = this.operation == Operation.MOVE_TO;
         Vec3 want = moving ? new Vec3(this.wantedX - this.mob.getX(), this.wantedY - this.mob.getY(), this.wantedZ - this.mob.getZ()) : null;
 
@@ -52,7 +57,7 @@ public class WallClimberMoveControl<T extends Mob & WallClimber> extends MoveCon
             Vec3 dir = climbing.isTouching() ? want.subtract(up.scale(want.dot(up))) : want;
             double distance = dir.length();
             if (distance > 1.0E-3) {
-                double speed = this.speedModifier * this.mob.getAttributeValue(Attributes.MOVEMENT_SPEED) * this.mob.getClimbSpeedFactor();
+                double speed = this.speedModifier * this.mob.getAttributeValue(Attributes.MOVEMENT_SPEED) * climbing.getSettings().speedFactor();
                 velocity = dir.scale(Math.min(speed, distance) / distance);
 
                 Float yaw = WallClimbing.localYaw(climbing.getSurface(), dir);

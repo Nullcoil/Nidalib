@@ -11,7 +11,8 @@
 		"LavaMapColorMixin",
 		"climbing.WallClimberEntityMixin",
 		"climbing.WallClimberLivingEntityMixin",
-		"climbing.WallClimberMobMixin"
+		"climbing.WallClimberMobMixin",
+		"climbing.WallClimberSpiderMixin"
 	],
 	"client": [
 		"LavaFogColorMixin",

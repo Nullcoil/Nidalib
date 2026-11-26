@@ -2,7 +2,6 @@ package net.nullcoil.nidalib.climbing;
 
 import net.minecraft.core.Direction;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -16,7 +15,7 @@ import org.joml.Vector3f;
 import java.util.EnumSet;
 
 /**
- * Climbing state for one {@link WallClimber} mob: which block face it's standing on (synced to
+ * Climbing state for one mob that can climb (see {@link WallClimbers}): which block face it's standing on (synced to
  * clients), how it picks a new one, and (client side) the smoothed model rotation.
  *
  * <p>The "surface" is the direction from the mob to the face it stands on: {@code DOWN} is the
@@ -37,17 +36,22 @@ public class WallClimbing {
     private static final int HOLD_PATHING = 10;
     /** Same, while idle. */
     private static final int HOLD_IDLE = 2;
+    /** It has to get this far (squared, so half a block) from where it started trying, or it's making no progress. */
+    private static final double STUCK_PROGRESS_SQR = 0.25;
+    /** After letting go because it was stuck, it can't grab anything for this long, so it actually drops. */
+    private static final int STUCK_NO_GRAB = 30;
     /** Share of the way the model turns toward a new surface each tick (client). */
     private static final float TURN = 0.35F;
 
     private final Mob mob;
-    private final WallClimber climber;
     private final EntityDataAccessor<Direction> data;
 
     // Server
     private boolean touching = true;
     private int lostTicks;
     private int grabCooldown;
+    private @Nullable Vec3 stuckAnchor;
+    private int stuckTime;
 
     // Client
     private boolean initialized;
@@ -56,30 +60,35 @@ public class WallClimbing {
     private final Vector3f offset = new Vector3f();
     private final Vector3f prevOffset = new Vector3f();
 
+    /** Made by Nidalib for each mob that can climb; get it with {@link #get}. */
     public WallClimbing(Mob mob, EntityDataAccessor<Direction> data) {
-        if (!(mob instanceof WallClimber climber)) {
-            throw new IllegalArgumentException(mob.getClass().getName() + " must implement WallClimber");
-        }
         this.mob = mob;
-        this.climber = climber;
         this.data = data;
     }
 
-    /** Call from a static field of the mob's class. */
-    public static EntityDataAccessor<Direction> defineSurface(Class<? extends Entity> type) {
-        return SynchedEntityData.defineId(type, EntityDataSerializers.DIRECTION);
+    /** The climbing state of this entity, or null if it can't climb. */
+    public static @Nullable WallClimbing get(Entity entity) {
+        return entity instanceof WallClimbingHolder holder ? holder.nidalib$getWallClimbing() : null;
     }
 
-    /** Call from the mob's {@code defineSynchedData}. */
-    public static void define(SynchedEntityData.Builder builder, EntityDataAccessor<Direction> data) {
-        builder.define(data, Direction.DOWN);
+    /** The settings it climbs with right now. */
+    public ClimbSettings getSettings() {
+        ClimbSettings settings = WallClimbers.get(this.mob);
+        return settings != null ? settings : ClimbSettings.WALLS;
     }
 
     // ---------------------------------------------------------------- state
 
     /** The face it's standing on ({@code DOWN} = floor). */
     public Direction getSurface() {
-        return this.mob.getEntityData().get(this.data);
+        // The box is first made inside Entity's constructor, before synced data exists
+        SynchedEntityData entityData = this.mob.getEntityData();
+        return entityData != null ? entityData.get(this.data) : Direction.DOWN;
+    }
+
+    /** Whether this is the synced value that holds its surface. */
+    public boolean isSurfaceData(EntityDataAccessor<?> accessor) {
+        return accessor == this.data;
     }
 
     /** On a wall or ceiling (not the floor). */
@@ -105,7 +114,124 @@ public class WallClimbing {
     /** Lets go: back to the floor with gravity, and no grabbing anything for this many ticks (e.g. dropping on a player). */
     public void detach(int noGrabTicks) {
         this.grabCooldown = Math.max(this.grabCooldown, noGrabTicks);
-        this.setSurface(Direction.DOWN);
+        this.moveTo(Direction.DOWN, this.touching, true);
+    }
+
+    // ---------------------------------------------------------------- hitbox
+
+    /**
+     * Size of its box on this surface. Turning onto a wall turns the box with it: its height
+     * becomes its depth out from the wall, and its width runs up the wall. Floors and ceilings
+     * keep the normal box.
+     */
+    public Vec3 getExtents(Direction surface) {
+        double w = this.mob.getBbWidth();
+        double h = this.mob.getBbHeight();
+        return switch (surface.getAxis()) {
+            case Y -> new Vec3(w, h, w);
+            case Z -> new Vec3(w, w, h);
+            case X -> new Vec3(h, w, w);
+        };
+    }
+
+    /** Its box at this position (bottom center, as always), turned for its current surface. */
+    public AABB makeBoundingBox(Vec3 pos) {
+        Vec3 e = this.getExtents(this.getSurface());
+        return new AABB(pos.x - e.x / 2, pos.y, pos.z - e.z / 2, pos.x + e.x / 2, pos.y + e.y, pos.z + e.z / 2);
+    }
+
+    /**
+     * Where it has to stand for its turned box to fit on {@code to}, or null if it doesn't fit.
+     * The new box keeps the side against the new surface where it was (and the side against the
+     * old one, if {@code keepFrom}), and stays centered on the other axes. Stepping from the floor
+     * onto a wall, the box stands up in the corner, flush with both.
+     */
+    private @Nullable Vec3 placeFor(Direction from, Direction to, boolean keepFrom) {
+        AABB old = this.mob.getBoundingBox();
+        Vec3 size = this.getExtents(to);
+        double[] min = new double[3];
+        double[] max = new double[3];
+        Direction.Axis[] axes = Direction.Axis.values();
+        for (int i = 0; i < 3; i++) {
+            Direction.Axis axis = axes[i];
+            double extent = size.get(axis);
+            Direction anchor = to.getAxis() == axis ? to
+                    : keepFrom && from.getAxis() == axis ? from
+                    : null;
+            if (anchor == null) {
+                double center = (old.min(axis) + old.max(axis)) / 2;
+                min[i] = center - extent / 2;
+                max[i] = center + extent / 2;
+            } else if (anchor.getAxisDirection() == Direction.AxisDirection.POSITIVE) {
+                max[i] = old.max(axis);
+                min[i] = max[i] - extent;
+            } else {
+                min[i] = old.min(axis);
+                max[i] = min[i] + extent;
+            }
+        }
+        AABB box = new AABB(min[0], min[1], min[2], max[0], max[1], max[2]);
+        if (!this.mob.level().noCollision(this.mob, box.deflate(1.0E-5))) return null;
+        return new Vec3((box.minX + box.maxX) / 2, box.minY, (box.minZ + box.maxZ) / 2);
+    }
+
+    /**
+     * Switches to {@code to} and moves so its turned box fits. Returns false (and stays put) if
+     * it doesn't fit, unless {@code force}: then it switches anyway, centered where it was
+     * (letting go has to work even in a tight spot).
+     */
+    private boolean moveTo(Direction to, boolean keepFrom, boolean force) {
+        Direction from = this.getSurface();
+        if (from == to) return true;
+        Vec3 pos = this.placeFor(from, to, keepFrom);
+        if (pos == null && keepFrom) pos = this.placeFor(from, to, false);
+        if (pos == null) {
+            if (!force) return false;
+            AABB old = this.mob.getBoundingBox();
+            pos = new Vec3(old.getCenter().x, old.getCenter().y - this.getExtents(to).y / 2, old.getCenter().z);
+        }
+        this.setSurface(to);
+        this.mob.setPos(pos);
+        return true;
+    }
+
+    /**
+     * Where its eyes are when it stands at {@code pos} (bottom center of its box): eye height out
+     * from the face it's on, along its "up", instead of straight up. Used for everything that
+     * asks for its eye position (looking, line of sight, suffocation).
+     */
+    public Vec3 getEyePosition(Vec3 pos) {
+        Direction s = this.getSurface();
+        double eye = this.mob.getEyeHeight();
+        double w = this.mob.getBbWidth();
+        double h = this.mob.getBbHeight();
+        return switch (s) {
+            case DOWN -> pos.add(0.0, eye, 0.0);
+            case UP -> pos.add(0.0, h - eye, 0.0);
+            // Its feet are on the wall side of its box (h/2 from the middle); eyes are eye height out from there
+            default -> new Vec3(pos.x + s.getStepX() * (h / 2 - eye), pos.y + w / 2, pos.z + s.getStepZ() * (h / 2 - eye));
+        };
+    }
+
+    /**
+     * Vanilla's suffocation check, turned: a flat square 0.8 × its width across, at its eyes,
+     * lying in the plane of the face it's on (vanilla's lies flat, which on a wall sticks out of
+     * its turned box and into the wall it stands on).
+     */
+    public AABB getInWallCheckBox(Vec3 eye) {
+        double f = this.mob.getBbWidth() * 0.8;
+        double thin = 1.0E-6;
+        return switch (this.getSurface().getAxis()) {
+            case Y -> AABB.ofSize(eye, f, thin, f);
+            case Z -> AABB.ofSize(eye, f, f, thin);
+            case X -> AABB.ofSize(eye, thin, f, f);
+        };
+    }
+
+    /** Loading: put it back on the face it was saved on, as it was (no turning, no moving). */
+    public void restoreSurface(Direction surface) {
+        if (surface != Direction.DOWN && !this.getSettings().canClimbOn(surface)) return;
+        this.mob.getEntityData().set(this.data, surface);
     }
 
     private void setSurface(Direction surface) {
@@ -141,9 +267,37 @@ public class WallClimbing {
         EnumSet<Direction> contacts = this.grabCooldown > 0 ? EnumSet.noneOf(Direction.class) : this.findContacts();
         Direction next = this.choose(current, contacts, want);
 
-        this.setSurface(next);
+        if (next != current) {
+            // Losing its grip has to work; stepping onto a face it doesn't fit against doesn't
+            boolean letGo = next == Direction.DOWN && !contacts.contains(current);
+            if (!this.moveTo(next, contacts.contains(current), letGo)) next = current;
+        }
         this.touching = next == Direction.DOWN || contacts.contains(next);
         if (next != Direction.DOWN) this.mob.resetFallDistance();
+        this.checkStuck(want);
+    }
+
+    /**
+     * Trying to move on a wall or ceiling but not getting anywhere (a path it can't follow, a
+     * face it doesn't fit onto): let go, drop, and let its goals plan again from the ground.
+     */
+    private void checkStuck(@Nullable Vec3 want) {
+        int limit = this.getSettings().stuckTicks();
+        if (limit <= 0 || !this.isClimbing() || want == null || want.lengthSqr() < 1.0E-4) {
+            this.stuckAnchor = null;
+            this.stuckTime = 0;
+            return;
+        }
+        Vec3 pos = this.mob.position();
+        if (this.stuckAnchor == null || pos.distanceToSqr(this.stuckAnchor) > STUCK_PROGRESS_SQR) {
+            this.stuckAnchor = pos;
+            this.stuckTime = 0;
+        } else if (++this.stuckTime >= limit) {
+            this.stuckAnchor = null;
+            this.stuckTime = 0;
+            this.mob.getNavigation().stop();
+            this.detach(STUCK_NO_GRAB);
+        }
     }
 
     private Direction choose(Direction current, EnumSet<Direction> contacts, @Nullable Vec3 want) {
@@ -220,8 +374,9 @@ public class WallClimbing {
     private EnumSet<Direction> findContacts() {
         EnumSet<Direction> found = EnumSet.noneOf(Direction.class);
         AABB box = this.mob.getBoundingBox();
+        ClimbSettings settings = this.getSettings();
         for (Direction d : Direction.values()) {
-            if (d != Direction.DOWN && !this.climber.canClimbOn(d)) continue;
+            if (!settings.canClimbOn(d)) continue;
             if (this.mob.level().getBlockCollisions(this.mob, probe(box, d, REACH)).iterator().hasNext()) {
                 found.add(d);
             }
@@ -304,14 +459,15 @@ public class WallClimbing {
         return new Vec3(v.x, v.y, v.z);
     }
 
-    /** Where the model's feet go, relative to the entity's position: the middle of the box's face on that side. */
+    /** Where the model's feet go, relative to the entity's position: the middle of its (turned) box's face on that side. */
     private Vector3f contactOffset(Direction surface, Vector3f dest) {
-        float w = this.mob.getBbWidth() / 2.0F;
+        float w = this.mob.getBbWidth();
         float h = this.mob.getBbHeight();
         return switch (surface) {
             case DOWN -> dest.set(0.0F, 0.0F, 0.0F);
             case UP -> dest.set(0.0F, h, 0.0F);
-            default -> dest.set(surface.getStepX() * w, h / 2.0F, surface.getStepZ() * w);
+            // On a wall the box is w tall and h deep; its wall side is h/2 from its middle
+            default -> dest.set(surface.getStepX() * h / 2.0F, w / 2.0F, surface.getStepZ() * h / 2.0F);
         };
     }
 

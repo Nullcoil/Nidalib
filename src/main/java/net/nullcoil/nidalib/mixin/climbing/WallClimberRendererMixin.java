@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.world.entity.LivingEntity;
-import net.nullcoil.nidalib.climbing.WallClimber;
 import net.nullcoil.nidalib.climbing.WallClimbing;
 import net.nullcoil.nidalib.client.climbing.WallClimberRenderState;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +19,7 @@ public abstract class WallClimberRendererMixin {
     )
     private void nidalib$extractClimbPose(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
         WallClimberRenderState climbState = (WallClimberRenderState) state;
-        WallClimbing climbing = entity instanceof WallClimber climber ? climber.getWallClimbing() : null;
+        WallClimbing climbing = WallClimbing.get(entity);
         boolean rotated = climbing != null && climbing.hasRenderRotation();
         climbState.nidalib$setClimbRotated(rotated);
         if (rotated) {

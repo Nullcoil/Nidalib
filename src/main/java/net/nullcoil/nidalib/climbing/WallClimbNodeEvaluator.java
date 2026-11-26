@@ -7,6 +7,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
+import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -26,7 +27,8 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
     @Override
     public Node getStart() {
         // Vanilla drops the start to the ground below; on a wall, start where it is
-        if (this.mob instanceof WallClimber climber && climber.getWallClimbing() != null && climber.getWallClimbing().isClimbing()) {
+        WallClimbing climbing = WallClimbing.get(this.mob);
+        if (climbing != null && climbing.isClimbing()) {
             int x = Mth.floor(this.mob.getX() - this.entityWidth * 0.5 + 0.5);
             int y = Mth.floor(this.mob.getY() + 0.1);
             int z = Mth.floor(this.mob.getZ() - this.entityDepth * 0.5 + 0.5);
@@ -41,7 +43,8 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
     @Override
     public int getNeighbors(Node[] neighbors, Node node) {
         int count = super.getNeighbors(neighbors, node);
-        if (!(this.mob instanceof WallClimber climber)) return count;
+        ClimbSettings climber = WallClimbers.get(this.mob);
+        if (climber == null) return count;
 
         boolean fromSupported = node.type == PathType.WALKABLE || this.isSupported(climber, node.x, node.y, node.z);
         for (Direction dir : Direction.values()) {
@@ -54,7 +57,7 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
         return count;
     }
 
-    private @Nullable Node climbNode(WallClimber climber, int x, int y, int z, boolean fromSupported) {
+    private @Nullable Node climbNode(ClimbSettings climber, int x, int y, int z, boolean fromSupported) {
         PathType type = this.getCachedPathType(x, y, z);
         float malus = this.mob.getPathfindingMalus(type);
         if (malus < 0.0F) return null;
@@ -65,7 +68,7 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
         Node node = this.getNode(x, y, z);
         if (node.closed) return null;
         node.type = type;
-        float cost = malus + (type == PathType.WALKABLE ? 0.0F : climber.getClimbPathCost()) + (supported ? 0.0F : EDGE_COST);
+        float cost = malus + (type == PathType.WALKABLE ? 0.0F : climber.pathCost()) + (supported ? 0.0F : EDGE_COST);
         node.costMalus = Math.max(node.costMalus, cost);
         return node;
     }
@@ -77,18 +80,38 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
         return false;
     }
 
-    /** Whether the mob's footprint at this node is right against a face it can climb. */
-    private boolean isSupported(WallClimber climber, int x, int y, int z) {
+    /** Whether the mob's footprint at this node is right against a face it can climb, with room for its turned box there. */
+    private boolean isSupported(ClimbSettings climber, int x, int y, int z) {
         int w = this.entityWidth, h = this.entityHeight, d = this.entityDepth;
-        if (climber.canClimbOn(Direction.NORTH) && this.anySolid(x, x + w - 1, y, y + h - 1, z - 1, z - 1)) return true;
-        if (climber.canClimbOn(Direction.SOUTH) && this.anySolid(x, x + w - 1, y, y + h - 1, z + d, z + d)) return true;
-        if (climber.canClimbOn(Direction.WEST) && this.anySolid(x - 1, x - 1, y, y + h - 1, z, z + d - 1)) return true;
-        if (climber.canClimbOn(Direction.EAST) && this.anySolid(x + w, x + w, y, y + h - 1, z, z + d - 1)) return true;
+        if (climber.canClimbOn(Direction.NORTH) && this.anySolid(x, x + w - 1, y, y + h - 1, z - 1, z - 1) && this.fits(Direction.NORTH, x, y, z)) return true;
+        if (climber.canClimbOn(Direction.SOUTH) && this.anySolid(x, x + w - 1, y, y + h - 1, z + d, z + d) && this.fits(Direction.SOUTH, x, y, z)) return true;
+        if (climber.canClimbOn(Direction.WEST) && this.anySolid(x - 1, x - 1, y, y + h - 1, z, z + d - 1) && this.fits(Direction.WEST, x, y, z)) return true;
+        if (climber.canClimbOn(Direction.EAST) && this.anySolid(x + w, x + w, y, y + h - 1, z, z + d - 1) && this.fits(Direction.EAST, x, y, z)) return true;
         return climber.canClimbOn(Direction.UP) && this.anySolid(x, x + w - 1, y + h, y + h, z, z + d - 1);
     }
 
+    /**
+     * Whether its box, turned for a wall on that side, fits at this node: flush against the
+     * wall, from the bottom of the node up, centered across the node's footprint. (Ceilings use
+     * the normal box, which vanilla's checks already cover.)
+     */
+    private boolean fits(Direction wall, int x, int y, int z) {
+        double w = this.mob.getBbWidth();
+        double h = this.mob.getBbHeight();
+        double cx = x + this.entityWidth * 0.5;
+        double cz = z + this.entityDepth * 0.5;
+        AABB box = switch (wall) {
+            case NORTH -> new AABB(cx - w / 2, y, z, cx + w / 2, y + w, z + h);
+            case SOUTH -> new AABB(cx - w / 2, y, z + this.entityDepth - h, cx + w / 2, y + w, z + this.entityDepth);
+            case WEST -> new AABB(x, y, cz - w / 2, x + h, y + w, cz + w / 2);
+            case EAST -> new AABB(x + this.entityWidth - h, y, cz - w / 2, x + this.entityWidth, y + w, cz + w / 2);
+            default -> null;
+        };
+        return box == null || this.currentContext.level().noCollision(box.deflate(1.0E-5));
+    }
+
     /** Whether anything solid is diagonally next to the footprint (edges and corners). */
-    private boolean isNearSupport(WallClimber climber, int x, int y, int z) {
+    private boolean isNearSupport(ClimbSettings climber, int x, int y, int z) {
         int w = this.entityWidth, h = this.entityHeight, d = this.entityDepth;
         int top = climber.canClimbOn(Direction.UP) ? y + h : y + h - 1;
         return this.anySolid(x - 1, x + w, y - 1, top, z - 1, z + d);
