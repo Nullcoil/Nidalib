@@ -8,7 +8,10 @@
 		"LivingEntityMixin",
 		"MultiNoiseBiomeSourceMixin",
 		"LavaFireMixin",
-		"LavaMapColorMixin"
+		"LavaMapColorMixin",
+		"climbing.WallClimberEntityMixin",
+		"climbing.WallClimberLivingEntityMixin",
+		"climbing.WallClimberMobMixin"
 	],
 	"client": [
 		"LavaFogColorMixin",
@@ -21,7 +24,9 @@
 		"LavaEmberParticleMixin",
 		"LavaDripParticleMixin",
 		"SingleQuadParticleAccessor",
-		"ParticlePositionAccessor"
+		"ParticlePositionAccessor",
+		"climbing.WallClimberRenderStateMixin",
+		"climbing.WallClimberRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
