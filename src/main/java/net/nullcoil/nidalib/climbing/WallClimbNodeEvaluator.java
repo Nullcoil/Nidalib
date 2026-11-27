@@ -91,9 +91,10 @@ public class WallClimbNodeEvaluator extends WalkNodeEvaluator {
     }
 
     /**
-     * Whether its box, turned for a wall on that side, fits at this node: flush against the
-     * wall, from the bottom of the node up, centered across the node's footprint. (Ceilings use
-     * the normal box, which vanilla's checks already cover.)
+     * Whether its box, turned onto a wall on that side (what its adaptive box grows toward there,
+     * facing up or down the wall), fits at this node: flush against the wall, from the bottom of
+     * the node up, centered across the node's footprint. (Ceilings use vanilla's checks: turned
+     * upside down its box is the same size.)
      */
     private boolean fits(Direction wall, int x, int y, int z) {
         double w = this.mob.getBbWidth();

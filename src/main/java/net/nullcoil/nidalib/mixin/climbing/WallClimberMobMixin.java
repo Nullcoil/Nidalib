@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.Vec3;
 import net.nullcoil.nidalib.climbing.WallClimberMoveControl;
 import net.nullcoil.nidalib.climbing.WallClimberNavigation;
 import net.nullcoil.nidalib.climbing.WallClimbers;
@@ -30,9 +31,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(Mob.class)
 public abstract class WallClimberMobMixin implements WallClimbingHolder {
+    /** The face it stands on (its 3D data value); see {@link WallClimbing}. */
     @Unique
-    private static final EntityDataAccessor<Direction> NIDALIB$DATA_SURFACE =
-            SynchedEntityData.defineId(Mob.class, EntityDataSerializers.DIRECTION);
+    private static final EntityDataAccessor<Byte> NIDALIB$DATA_SURFACE =
+            SynchedEntityData.defineId(Mob.class, EntityDataSerializers.BYTE);
+    /** Its adaptive box's size (0 = not sized yet: vanilla's box). */
+    @Unique
+    private static final EntityDataAccessor<Float> NIDALIB$DATA_SIZE_X =
+            SynchedEntityData.defineId(Mob.class, EntityDataSerializers.FLOAT);
+    @Unique
+    private static final EntityDataAccessor<Float> NIDALIB$DATA_SIZE_Y =
+            SynchedEntityData.defineId(Mob.class, EntityDataSerializers.FLOAT);
+    @Unique
+    private static final EntityDataAccessor<Float> NIDALIB$DATA_SIZE_Z =
+            SynchedEntityData.defineId(Mob.class, EntityDataSerializers.FLOAT);
+
+    @Unique
+    private static final String NIDALIB$SIZE_KEY = "nidalib:climb_size";
 
     @Unique
     private static final String NIDALIB$SURFACE_KEY = "nidalib:climb_surface";
@@ -48,7 +63,7 @@ public abstract class WallClimberMobMixin implements WallClimbingHolder {
             this.nidalib$climbingChecked = true;
             Mob self = (Mob) (Object) this;
             if (WallClimbers.canClimb(self)) {
-                this.nidalib$climbing = new WallClimbing(self, NIDALIB$DATA_SURFACE);
+                this.nidalib$climbing = new WallClimbing(self, NIDALIB$DATA_SURFACE, NIDALIB$DATA_SIZE_X, NIDALIB$DATA_SIZE_Y, NIDALIB$DATA_SIZE_Z);
             }
         }
         return this.nidalib$climbing;
@@ -56,7 +71,10 @@ public abstract class WallClimberMobMixin implements WallClimbingHolder {
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void nidalib$defineSurface(SynchedEntityData.Builder builder, CallbackInfo ci) {
-        builder.define(NIDALIB$DATA_SURFACE, Direction.DOWN);
+        builder.define(NIDALIB$DATA_SURFACE, (byte) 0);
+        builder.define(NIDALIB$DATA_SIZE_X, 0.0F);
+        builder.define(NIDALIB$DATA_SIZE_Y, 0.0F);
+        builder.define(NIDALIB$DATA_SIZE_Z, 0.0F);
     }
 
     /** Swapped in before its goals are registered, so goals that set up the navigation (FloatGoal) set up this one. */
@@ -78,12 +96,19 @@ public abstract class WallClimberMobMixin implements WallClimbingHolder {
         }
     }
 
-    /** Saved so it reloads on its wall with its box turned, instead of an upright box half inside the wall. */
+    /** Saved so it reloads on its wall with the box it had, instead of its normal box half inside the wall. */
     @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
     private void nidalib$saveSurface(ValueOutput output, CallbackInfo ci) {
         WallClimbing climbing = this.nidalib$getWallClimbing();
-        if (climbing != null && climbing.isClimbing()) {
+        if (climbing == null) return;
+        if (climbing.isClimbing()) {
             output.putByte(NIDALIB$SURFACE_KEY, (byte) climbing.getSurface().get3DDataValue());
+        }
+        if (climbing.hasAdaptiveBox()) {
+            Vec3 size = climbing.getExtents();
+            output.putFloat(NIDALIB$SIZE_KEY + "_x", (float) size.x);
+            output.putFloat(NIDALIB$SIZE_KEY + "_y", (float) size.y);
+            output.putFloat(NIDALIB$SIZE_KEY + "_z", (float) size.z);
         }
     }
 
@@ -91,7 +116,13 @@ public abstract class WallClimberMobMixin implements WallClimbingHolder {
     private void nidalib$loadSurface(ValueInput input, CallbackInfo ci) {
         WallClimbing climbing = this.nidalib$getWallClimbing();
         if (climbing != null) {
-            climbing.restoreSurface(Direction.from3DDataValue(input.getByteOr(NIDALIB$SURFACE_KEY, (byte) Direction.DOWN.get3DDataValue())));
+            // Low 3 bits: older versions also stored a flag above them
+            Direction surface = Direction.from3DDataValue(input.getByteOr(NIDALIB$SURFACE_KEY, (byte) 0) & 7);
+            Vec3 size = new Vec3(
+                    input.getFloatOr(NIDALIB$SIZE_KEY + "_x", 0.0F),
+                    input.getFloatOr(NIDALIB$SIZE_KEY + "_y", 0.0F),
+                    input.getFloatOr(NIDALIB$SIZE_KEY + "_z", 0.0F));
+            climbing.restore(surface, size);
         }
     }
 

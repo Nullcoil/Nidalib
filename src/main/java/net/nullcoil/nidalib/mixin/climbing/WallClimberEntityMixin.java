@@ -37,25 +37,25 @@ public abstract class WallClimberEntityMixin {
         if (climbing != null && climbing.isClimbing()) cir.setReturnValue(0.0);
     }
 
-    /** On a wall its box is turned with it (see {@link WallClimbing#getExtents}). */
+    /** Its box is the adaptive one: turned onto its surface and pitched with the ground (see {@link WallClimbing#getTargetExtents}). */
     @Inject(method = "makeBoundingBox(Lnet/minecraft/world/phys/Vec3;)Lnet/minecraft/world/phys/AABB;", at = @At("HEAD"), cancellable = true)
     private void nidalib$turnedBoundingBox(Vec3 pos, CallbackInfoReturnable<AABB> cir) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);
-        if (climbing != null && climbing.isClimbing()) cir.setReturnValue(climbing.makeBoundingBox(pos));
+        if (climbing != null && climbing.hasAdaptiveBox()) cir.setReturnValue(climbing.makeBoundingBox(pos));
     }
 
-    // ---- Eyes: out from the face it's on, not straight up (see WallClimbing#getEyePosition)
+    // ---- Eyes: inside its box, out from the face it's on (see WallClimbing#getEyePosition)
 
     @Inject(method = "getEyePosition()Lnet/minecraft/world/phys/Vec3;", at = @At("HEAD"), cancellable = true)
     private void nidalib$turnedEyePosition(CallbackInfoReturnable<Vec3> cir) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);
-        if (climbing != null && climbing.isClimbing()) cir.setReturnValue(climbing.getEyePosition(this.position()));
+        if (climbing != null && climbing.hasAdaptiveBox()) cir.setReturnValue(climbing.getEyePosition(this.position()));
     }
 
     @Inject(method = "getEyePosition(F)Lnet/minecraft/world/phys/Vec3;", at = @At("HEAD"), cancellable = true)
     private void nidalib$turnedEyePositionLerped(float partialTick, CallbackInfoReturnable<Vec3> cir) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);
-        if (climbing != null && climbing.isClimbing()) {
+        if (climbing != null && climbing.hasAdaptiveBox()) {
             Vec3 pos = this.position();
             Vec3 lerped = new Vec3(Mth.lerp(partialTick, this.xo, pos.x), Mth.lerp(partialTick, this.yo, pos.y), Mth.lerp(partialTick, this.zo, pos.z));
             cir.setReturnValue(climbing.getEyePosition(lerped));
@@ -65,18 +65,18 @@ public abstract class WallClimberEntityMixin {
     @Inject(method = "getEyeY", at = @At("HEAD"), cancellable = true)
     private void nidalib$turnedEyeY(CallbackInfoReturnable<Double> cir) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);
-        if (climbing != null && climbing.isClimbing()) cir.setReturnValue(climbing.getEyePosition(this.position()).y);
+        if (climbing != null && climbing.hasAdaptiveBox()) cir.setReturnValue(climbing.getEyePosition(this.position()).y);
     }
 
     /**
-     * Suffocation still applies to climbers, but checked with the square turned to lie along the
-     * face it's on, at its turned eyes. Same test as vanilla otherwise: a suffocating block whose
+     * Suffocation still applies to climbers, but checked with a square inside its box, lying
+     * flat to the face it's on. Same test as vanilla otherwise: a suffocating block whose
      * collision shape overlaps the square.
      */
     @Inject(method = "isInWall", at = @At("HEAD"), cancellable = true)
     private void nidalib$turnedInWall(CallbackInfoReturnable<Boolean> cir) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);
-        if (climbing == null || !climbing.isClimbing() || this.noPhysics) return;
+        if (climbing == null || !climbing.hasAdaptiveBox() || this.noPhysics) return;
         AABB check = climbing.getInWallCheckBox(climbing.getEyePosition(this.position()));
         Level level = this.level();
         VoxelShape checkShape = Shapes.create(check);
@@ -88,7 +88,7 @@ public abstract class WallClimberEntityMixin {
         }));
     }
 
-    /** The surface changed (on the client, from the server): rebuild the box in its new shape. */
+    /** Its surface or box size changed (on the client, from the server): rebuild the box in its new shape. */
     @Inject(method = "onSyncedDataUpdated(Lnet/minecraft/network/syncher/EntityDataAccessor;)V", at = @At("TAIL"))
     private void nidalib$refreshTurnedBox(EntityDataAccessor<?> accessor, CallbackInfo ci) {
         WallClimbing climbing = WallClimbing.get((Entity) (Object) this);

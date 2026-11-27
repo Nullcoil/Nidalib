@@ -17,8 +17,9 @@ import java.util.Set;
  * @param speedFactor climbing speed as a share of its movement speed attribute (blocks per tick)
  * @param pathCost    extra path cost per climbing spot, so it prefers floors when the climb isn't shorter (0 = no preference)
  * @param stuckTicks  how long it can try to move on a wall or ceiling without getting anywhere before it lets go (0 = never)
+ * @param tilt        whether the model leans to follow uneven ground (steps, slopes, edges) on whatever face it's on
  */
-public record ClimbSettings(Set<Direction> faces, double speedFactor, float pathCost, int stuckTicks) {
+public record ClimbSettings(Set<Direction> faces, double speedFactor, float pathCost, int stuckTicks, boolean tilt) {
     /** Walls only, half its walking speed: like a spider. */
     public static final ClimbSettings WALLS = builder().build();
     /** Walls and ceilings, half its walking speed. */
@@ -46,6 +47,7 @@ public record ClimbSettings(Set<Direction> faces, double speedFactor, float path
         private double speedFactor = 0.5;
         private float pathCost = 0.0F;
         private int stuckTicks = 40;
+        private boolean tilt = true;
 
         private Builder() {
         }
@@ -80,13 +82,19 @@ public record ClimbSettings(Set<Direction> faces, double speedFactor, float path
             return this;
         }
 
+        /** Lean the model, and the box sized around it, to follow uneven ground (default on). */
+        public Builder tilt(boolean tilt) {
+            this.tilt = tilt;
+            return this;
+        }
+
         public ClimbSettings build() {
             EnumSet<Direction> faces = EnumSet.noneOf(Direction.class);
             if (this.walls) {
                 for (Direction d : Direction.Plane.HORIZONTAL) faces.add(d);
             }
             if (this.ceilings) faces.add(Direction.UP);
-            return new ClimbSettings(faces, this.speedFactor, this.pathCost, this.stuckTicks);
+            return new ClimbSettings(faces, this.speedFactor, this.pathCost, this.stuckTicks, this.tilt);
         }
     }
 }
